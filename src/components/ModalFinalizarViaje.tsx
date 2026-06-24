@@ -1,0 +1,147 @@
+import React, { useState, useRef } from 'react';
+import { Camera, X, CheckCircle, Square, AlertCircle } from 'lucide-react';
+
+interface Props {
+  onClose: () => void;
+  onFinish: (data: any) => Promise<any>;
+  kmInicio: number;
+  duracionSegundos: number;
+}
+
+function formatDuration(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return `${h}h ${m}m`;
+}
+
+function useCameraCapture() {
+  const [photo, setPhoto] = useState<string | null>(null);
+  
+  const capturePhoto = async (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setPhoto(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+  
+  const reset = () => setPhoto(null);
+  return { photo, capturePhoto, reset };
+}
+
+export default function ModalFinalizarViaje({ onClose, onFinish, kmInicio, duracionSegundos }: Props) {
+  const [kmFinal, setKmFinal] = useState('');
+  const [combustibleLitros, setCombustibleLitros] = useState('');
+  const [combustibleCosto, setCombustibleCosto] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const { photo, capturePhoto, reset } = useCameraCapture();
+  const inputFileRef = useRef<HTMLInputElement>(null);
+  
+  const distanciaOdometro = kmFinal ? parseFloat(kmFinal) - kmInicio : 0;
+  
+  const handleSubmit = async () => {
+    if (!photo) {
+      alert('Tomá una foto del odómetro final');
+      return;
+    }
+    
+    if (!kmFinal || !combustibleCosto) {
+      alert('Completá todos los campos obligatorios');
+      return;
+    }
+    
+    try {
+      setSubmitting(true);
+      const result = await onFinish({
+        fotoOdometroFin: photo,
+        kmFinal: parseFloat(kmFinal),
+        combustibleLitros: combustibleLitros ? parseFloat(combustibleLitros) : undefined,
+        combustibleCosto: parseFloat(combustibleCosto)
+      });
+      
+      if (result.alertas && result.alertas.length > 0) {
+        alert(result.alertas[0].mensaje);
+      }
+      
+      onClose();
+    } catch (error) {
+      alert('Error al finalizar viaje');
+      setSubmitting(false);
+    }
+  };
+  
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+      <div className="bg-slate-800 rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+        <h3 className="text-xl font-bold text-white mb-4">Finalizar Viaje</h3>
+        
+        <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg text-sm">
+          <div className="grid grid-cols-2 gap-2 text-slate-300">
+            <div><span className="text-slate-400">Duración:</span> {formatDuration(duracionSegundos)}</div>
+            <div><span className="text-slate-400">Km inicial:</span> {kmInicio.toLocaleString()}</div>
+          </div>
+        </div>
+        
+        <input
+          ref={inputFileRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) capturePhoto(file);
+          }}
+        />
+        
+        <div className="mb-4">
+          <label className="block text-sm text-slate-400 mb-2">Foto del odómetro (final) *</label>
+          
+          {!photo ? (
+            <button
+              type="button"
+              onClick={() => inputFileRef.current?.click()}
+              className="w-full h-40 border-2 border-dashed border-slate-600 rounded-lg flex flex-col items-center justify-center gap-2 hover:border-blue-500 transition"
+            >
+              <Camera className="w-8 h-8 text-slate-500" />
+              <span className="text-sm text-slate-400">Tomar foto</span>
+            </button>
+          ) : (
+            <div className="relative">
+              <img src={photo} alt="Odómetro final" className="w-full h-40 object-cover rounded-lg" />
+              <button type="button" onClick={() => { reset(); inputFileRef.current?.click(); }} className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-full">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </div>
+        
+        <div className="mb-4">
+          <label className="block text-sm text-slate-400 mb-2">Kilometraje final *</label>
+          <input type="number" step="0.1" value={kmFinal} onChange={(e) => setKmFinal(e.target.value)} placeholder="Ej: 45668.7" className="w-full bg-slate-700 text-white px-4 py-2 rounded-lg" />
+          {distanciaOdometro > 0 && (
+            <p className="text-xs text-emerald-400 mt-1">Distancia: {distanciaOdometro.toFixed(1)} km</p>
+          )}
+        </div>
+        
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div>
+            <label className="block text-sm text-slate-400 mb-2">Combustible (L)</label>
+            <input type="number" step="0.1" value={combustibleLitros} onChange={(e) => setCombustibleLitros(e.target.value)} placeholder="15.5" className="w-full bg-slate-700 text-white px-4 py-2 rounded-lg" />
+          </div>
+          <div>
+            <label className="block text-sm text-slate-400 mb-2">Costo (Gs) *</label>
+            <input type="number" step="1000" value={combustibleCosto} onChange={(e) => setCombustibleCosto(e.target.value)} placeholder="85000" className="w-full bg-slate-700 text-white px-4 py-2 rounded-lg" />
+          </div>
+        </div>
+        
+        <div className="flex gap-2">
+          <button type="button" onClick={onClose} className="flex-1 py-2 px-4 bg-slate-700 text-white rounded-lg">Cancelar</button>
+          <button type="button" onClick={handleSubmit} disabled={!photo || !kmFinal || !combustibleCosto || submitting} className="flex-1 py-2 px-4 bg-green-600 text-white rounded-lg flex items-center justify-center gap-2 disabled:opacity-50">
+            <CheckCircle className="w-4 h-4" /> Guardar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

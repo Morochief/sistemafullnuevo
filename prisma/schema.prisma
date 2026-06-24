@@ -1,0 +1,211 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Cliente {
+  id             String    @id @db.VarChar(50)
+  nombre         String
+  codigo         String    @db.VarChar(10)
+  fechaCreacion  DateTime  @default(now()) @map("fecha_creacion")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  proyectos         Proyecto[]
+  registros         Registro[]
+  registrosVehiculo RegistroVehiculo[]
+
+  @@map("clientes")
+}
+
+model Proyecto {
+  id           String        @id @db.VarChar(50)
+  clienteId    String        @map("cliente_id") @db.VarChar(50)
+  nombre       String
+  estado       EstadoProyecto @default(PENDIENTE)
+  fechaInicio  DateTime      @map("fecha_inicio")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  cliente           Cliente            @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  registros         Registro[]
+  registrosVehiculo RegistroVehiculo[]
+
+  @@index([clienteId])
+  @@map("proyectos")
+}
+
+model Colaborador {
+  id              String    @id @db.VarChar(50)
+  nombre          String
+  tarifaSugerida  Decimal?  @map("tarifa_sugerida") @db.Decimal(10, 2)
+  rol             String?
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  registros Registro[]
+
+  @@map("colaboradores")
+}
+
+model Registro {
+  id                String      @id @db.VarChar(50)
+  clienteId         String      @map("cliente_id") @db.VarChar(50)
+  clienteNombre     String      @map("cliente_nombre")
+  proyectoId        String      @map("proyecto_id") @db.VarChar(50)
+  proyectoNombre    String      @map("proyecto_nombre")
+  fecha             DateTime
+  concepto          Concepto
+  descripcion       String
+  colaboradorId     String?     @map("colaborador_id") @db.VarChar(50)
+  hsInicio          String?     @map("hs_inicio") @db.VarChar(5)
+  hsFin             String?     @map("hs_fin") @db.VarChar(5)
+  hsTotal           Decimal?    @map("hs_total") @db.Decimal(5, 2)
+  cantidad          Decimal     @db.Decimal(10, 2)
+  precioUnitario    Decimal     @map("precio_unitario") @db.Decimal(15, 2)
+  total             Decimal     @db.Decimal(15, 2)
+  origen            Origen      @default(MANUAL)
+  fechaImportacion  DateTime?   @map("fecha_importacion")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+
+  cliente      Cliente      @relation(fields: [clienteId], references: [id])
+  proyecto     Proyecto     @relation(fields: [proyectoId], references: [id])
+  colaborador  Colaborador? @relation(fields: [colaboradorId], references: [id])
+
+  @@index([clienteId])
+  @@index([proyectoId])
+  @@index([fecha(sort: Desc)])
+  @@map("registros")
+}
+
+model RegistroVehiculo {
+  id                   String    @id @db.VarChar(50)
+  clienteId            String    @map("cliente_id") @db.VarChar(50)
+  clienteNombre        String    @map("cliente_nombre")
+  proyectoId           String    @map("proyecto_id") @db.VarChar(50)
+  proyectoNombre       String    @map("proyecto_nombre")
+  fecha                DateTime
+  usuario              String    @db.VarChar(50)
+  kmInicial            Decimal   @map("km_inicial") @db.Decimal(10, 2)
+  kmFinal              Decimal   @map("km_final") @db.Decimal(10, 2)
+  distanciaOdometro    Decimal   @map("distancia_odometro") @db.Decimal(10, 2)
+  distanciaGPS         Decimal?  @map("distancia_gps") @db.Decimal(10, 2)
+  combustibleLitros    Decimal?  @map("combustible_litros") @db.Decimal(10, 2)
+  combustibleCosto     Decimal   @map("combustible_costo") @db.Decimal(15, 2)
+  total                Decimal   @db.Decimal(15, 2)
+  descripcion          String?
+  alertaDiscrepancia   Boolean   @default(false) @map("alerta_discrepancia")
+  discrepancia         Decimal?  @db.Decimal(5, 2)
+  consumoPorKm         Decimal?  @map("consumo_por_km") @db.Decimal(10, 4)
+  horaInicio           String?   @map("hora_inicio") @db.VarChar(8)
+  horaFin              String?   @map("hora_fin") @db.VarChar(8)
+  duracionMinutos      Int?      @map("duracion_minutos")
+  ubicacionInicio      Json?     @map("ubicacion_inicio")
+  ubicacionFin         Json?     @map("ubicacion_fin")
+  fotoOdometroInicio   String?   @map("foto_odometro_inicio") @db.Text
+  fotoOdometroFin      String?   @map("foto_odometro_fin") @db.Text
+  origen               Origen    @default(MANUAL)
+  fechaImportacion     DateTime? @map("fecha_importacion")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  cliente  Cliente  @relation(fields: [clienteId], references: [id])
+  proyecto Proyecto @relation(fields: [proyectoId], references: [id])
+
+  @@index([clienteId])
+  @@index([proyectoId])
+  @@index([usuario])
+  @@index([fecha(sort: Desc)])
+  @@map("registros_vehiculo")
+}
+
+model TimerActivo {
+  id                  String    @id @db.VarChar(50)
+  usuario             String    @db.VarChar(50)
+  colaboradorId       String?   @map("colaborador_id") @db.VarChar(50)
+  clienteId           String    @map("cliente_id") @db.VarChar(50)
+  proyectoId          String    @map("proyecto_id") @db.VarChar(50)
+  descripcion         String
+  precioUnitario      Decimal   @map("precio_unitario") @db.Decimal(15, 2)
+  inicio              DateTime
+  activo              Boolean   @default(true)
+  ultimaActualizacion DateTime  @map("ultima_actualizacion")
+  pausedTime          Int       @default(0) @map("paused_time")
+  pauseHistory        Json      @default("[]") @map("pause_history")
+  isPaused            Boolean   @default(false) @map("is_paused")
+  currentPauseStart   DateTime? @map("current_pause_start")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  @@index([usuario, activo])
+  @@map("timers_activos")
+}
+
+model ViajeActivo {
+  id                  String    @id @db.VarChar(50)
+  usuario             String    @db.VarChar(50)
+  clienteId           String    @map("cliente_id") @db.VarChar(50)
+  proyectoId          String    @map("proyecto_id") @db.VarChar(50)
+  inicio              DateTime
+  ubicacionInicio     Json      @map("ubicacion_inicio")
+  fotoOdometroInicio  String    @map("foto_odometro_inicio") @db.Text
+  kmInicial           Decimal   @map("km_inicial") @db.Decimal(10, 2)
+  descripcion         String
+  activo              Boolean   @default(true)
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  @@index([usuario, activo])
+  @@map("viajes_activos")
+}
+
+model Usuario {
+  id           String   @id @default(uuid())
+  username     String   @unique @db.VarChar(50)
+  passwordHash String   @map("password_hash")
+  email        String?  @unique @db.VarChar(255)
+  rol          Rol      @default(OPERADOR)
+  activo       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("usuarios")
+}
+
+enum EstadoProyecto {
+  PENDIENTE    @map("Pendiente")
+  EN_PROCESO   @map("En Proceso")
+  COMPLETADO   @map("Completado")
+
+  @@map("estado_proyecto")
+}
+
+enum Concepto {
+  MO
+  INSUMO     @map("Insumo")
+  VEHICULO   @map("Vehículo")
+
+  @@map("concepto")
+}
+
+enum Origen {
+  MANUAL   @map("Manual")
+  EXCEL    @map("Excel")
+  API      @map("API")
+
+  @@map("origen")
+}
+
+enum Rol {
+  ADMIN
+  OPERADOR
+  VISOR
+
+  @@map("rol")
+}

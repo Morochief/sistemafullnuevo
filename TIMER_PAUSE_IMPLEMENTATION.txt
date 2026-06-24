@@ -1,0 +1,214 @@
+═══════════════════════════════════════════════════════════════════
+  TIMER PAUSA/REANUDAR - IMPLEMENTACIÓN COMPLETADA
+═══════════════════════════════════════════════════════════════════
+
+✅ IMPLEMENTACIÓN FRONTEND COMPLETADA
+
+Se agregó funcionalidad completa de pausa/reanudar al timer en:
+  src/components/RegistroOperativo.tsx
+
+─────────────────────────────────────────────────────────────────
+1. ESTADOS AGREGADOS AL HOOK useTimer
+─────────────────────────────────────────────────────────────────
+
+interface PauseRecord {
+  start: string;      // ISO timestamp del inicio de pausa
+  end: string | null; // ISO timestamp del fin de pausa
+  duration: number;   // duración en segundos
+}
+
+Estados nuevos:
+• isPaused: boolean - indica si el timer está en pausa
+• pausedTime: number - tiempo acumulado de todas las pausas (segundos)
+• pauseStart: Date | null - timestamp del inicio de la pausa actual
+• pauseHistory: PauseRecord[] - historial completo de pausas
+
+Funciones nuevas:
+• handlePauseTimer() - Pausa el timer en curso
+• handleResumeTimer() - Reanuda el timer después de pausa
+
+─────────────────────────────────────────────────────────────────
+2. LÓGICA DE CÁLCULO IMPLEMENTADA
+─────────────────────────────────────────────────────────────────
+
+✓ El interval del timer solo corre cuando: timerRunning && !isPaused
+✓ timerSeconds representa el tiempo efectivo de trabajo (sin pausas)
+✓ Al pausar: se guarda pauseStart y se detiene el interval
+✓ Al reanudar:
+  - Se calcula la duración de la pausa
+  - Se suma a pausedTime acumulado
+  - Se agrega al historial pauseHistory
+  - Se reactiva el interval
+✓ Al finalizar con pausa activa: se cierra la pausa automáticamente
+
+─────────────────────────────────────────────────────────────────
+3. PERSISTENCIA EN LOCALSTORAGE
+─────────────────────────────────────────────────────────────────
+
+Keys adicionales por usuario:
+• afull_timer_{usuario}_paused
+• afull_timer_{usuario}_pausedTime
+• afull_timer_{usuario}_pauseStart
+• afull_timer_{usuario}_pauseHistory (JSON array)
+
+Al recargar la página, todos los estados se restauran correctamente.
+
+─────────────────────────────────────────────────────────────────
+4. BOTONES Y UX IMPLEMENTADOS
+─────────────────────────────────────────────────────────────────
+
+BOTÓN "DESCANSO" (Pausa):
+• Visible cuando: timerRunning && !isPaused
+• Ícono: Coffee
+• Color: Gradient amber-to-orange
+• Shadow: shadow-amber-500/25
+
+BOTÓN "REANUDAR":
+• Visible cuando: timerRunning && isPaused
+• Ícono: Play (filled)
+• Color: Gradient green-to-emerald
+• Shadow: shadow-green-500/25
+
+BOTÓN "FINALIZAR":
+• Visible en ambos estados (corriendo o pausado)
+• Mantiene diseño original
+
+ANILLO GIRATORIO:
+• Solo gira cuando: timerRunning && !isPaused
+• Se detiene cuando está en pausa
+
+COLOR DEL RELOJ:
+• Corriendo: azul (blue-300, border-blue-500/30)
+• En pausa: ámbar (amber-300, border-amber-500/30)
+• Finalizado: verde (emerald-300, border-emerald-500/30)
+
+ESTADO DEL RELOJ:
+• "EN CURSO" - timer activo
+• "EN DESCANSO" - timer pausado
+• "FINALIZADO" - timer detenido
+• "LISTO" - timer no iniciado
+
+─────────────────────────────────────────────────────────────────
+5. CHIPS DE INFORMACIÓN
+─────────────────────────────────────────────────────────────────
+
+CHIP DURANTE PAUSA (visible cuando isPaused):
+┌─────────────────────────────────────────────────┐
+│ ⏸ En descanso desde 14:30                      │
+└─────────────────────────────────────────────────┘
+• Fondo: amber-500/10
+• Borde: amber-500/30
+• Ícono: Pause
+• Muestra hora de inicio de pausa
+
+CHIP AL FINALIZAR (visible cuando timerEnd && pauseHistory.length > 0):
+┌─────────────────────────────────────────────────┐
+│ ☕ Total pausas: 00:15:30 (3 descansos)        │
+└─────────────────────────────────────────────────┘
+• Fondo: slate-500/10
+• Borde: slate-500/30
+• Ícono: Coffee
+• Muestra total acumulado y cantidad de pausas
+
+─────────────────────────────────────────────────────────────────
+6. INTEGRACIÓN CON REGISTRO
+─────────────────────────────────────────────────────────────────
+
+✓ El cálculo de costo usa timerSeconds (tiempo efectivo sin pausas)
+✓ minutosRegistrados = Math.round(timerSeconds / 60)
+✓ costoMO = minutosRegistrados × tarifaMin
+✓ horasTotales = timerSeconds / 3600
+
+Al registrar Mano de Obra:
+• Se envía el tiempo efectivo de trabajo
+• No se facturan los descansos
+• El backend recibe pausedTime y pauseHistory en el stop
+
+─────────────────────────────────────────────────────────────────
+7. ENDPOINTS BACKEND (OPCIONALES - NO IMPLEMENTADOS)
+─────────────────────────────────────────────────────────────────
+
+Los endpoints actuales funcionan correctamente con la implementación
+del frontend. Los siguientes son OPCIONALES para mejorar tracking:
+
+A) POST /api/timer/pause
+   Body: { usuario: string }
+   Response: { success: boolean, data: { pauseStart: string } }
+   
+   Registra el inicio de una pausa en el servidor.
+
+B) POST /api/timer/resume
+   Body: { 
+     usuario: string, 
+     pauseDuration: number,
+     totalPausedTime: number
+   }
+   Response: { success: boolean, data: { ... } }
+   
+   Registra el fin de una pausa en el servidor.
+
+C) Actualizar POST /api/timer/stop
+   Agregar en el body:
+   {
+     usuario: string,
+     pausedTime: number,        // ← YA ENVIADO
+     pauseHistory: PauseRecord[] // ← YA ENVIADO
+   }
+   
+   Guardar pauseHistory en el registro para auditoría.
+
+NOTA: La implementación actual funciona sin estos endpoints.
+      El frontend maneja todo en localStorage y el cálculo es correcto.
+      Los endpoints son solo para mejorar auditoría y persistencia servidor.
+
+─────────────────────────────────────────────────────────────────
+8. COMPATIBILIDAD Y RESTRICCIONES
+─────────────────────────────────────────────────────────────────
+
+✅ NO se rompe funcionalidad existente
+✅ Sync cada 30s sigue funcionando
+✅ Los botones originales se mantienen
+✅ El aesthetic "glass-panel" se preserva
+✅ Los cálculos de costo usan tiempo efectivo
+
+─────────────────────────────────────────────────────────────────
+9. TESTING RECOMENDADO
+─────────────────────────────────────────────────────────────────
+
+Casos a probar:
+1. Iniciar timer → Pausar → Reanudar → Finalizar
+2. Múltiples pausas en una sesión
+3. Pausar y recargar página → Verificar restauración
+4. Pausar y esperar sync (30s) → Verificar comportamiento
+5. Finalizar mientras está pausado → Verificar cierre correcto
+6. Registrar MO con pausas → Verificar cálculo de costo
+
+─────────────────────────────────────────────────────────────────
+10. PRÓXIMOS PASOS (OPCIONAL)
+─────────────────────────────────────────────────────────────────
+
+Si se desea implementar los endpoints del servidor:
+
+1. Agregar campos al tipo Timer en types.ts:
+   interface Timer {
+     // ... campos existentes
+     pausedTime?: number;
+     pauseHistory?: PauseRecord[];
+   }
+
+2. Crear schemas de validación en server-validation.ts:
+   - TimerPauseSchema
+   - TimerResumeSchema
+
+3. Implementar endpoints en server.ts:
+   - POST /api/timer/pause
+   - POST /api/timer/resume
+   - Actualizar POST /api/timer/stop
+
+4. Descomentar las llamadas en useTimer:
+   - En handlePauseTimer()
+   - En handleResumeTimer()
+
+═══════════════════════════════════════════════════════════════════
+  FIN DEL DOCUMENTO
+═══════════════════════════════════════════════════════════════════

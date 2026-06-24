@@ -1,0 +1,6 @@
+{
+  "name": "Sistema aFull",
+  "description": "Sistema unificado de gestión operativa, registro de Mano de Obra (MO), control de insumos e importación automatizada de archivos Excel.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
