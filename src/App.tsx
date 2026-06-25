@@ -483,6 +483,18 @@ export default function App() {
       for (const item of registrosNuevos) {
         const realClienteId = clienteIdMap.get(item.clienteId) || item.clienteId;
         const realProyectoId = proyectoIdMap.get(item.proyectoId) || item.proyectoId;
+
+        // Validación defensiva: saltar registros con datos inválidos que Zod rechazaría
+        if (!realClienteId || !realProyectoId) { errores++; continue; }
+        if (!item.fecha || !/^\d{4}-\d{2}-\d{2}$/.test(item.fecha)) { errores++; continue; }
+        if (!item.cantidad || item.cantidad <= 0) { errores++; continue; }
+        if (!item.precioUnitario || item.precioUnitario <= 0) { errores++; continue; }
+        const total = item.total > 0 ? item.total : item.cantidad * item.precioUnitario;
+        if (total <= 0) { errores++; continue; }
+        // Normalizar concepto — el backend acepta solo 'MO', 'Insumo', 'Otros'
+        const conceptoValido: 'MO' | 'Insumo' | 'Otros' =
+          item.concepto === 'MO' ? 'MO' : item.concepto === 'Insumo' ? 'Insumo' : 'Otros';
+
         try {
           await authFetchJSON('/api/registros', {
             method: 'POST',
@@ -491,15 +503,15 @@ export default function App() {
               clienteId: realClienteId,
               proyectoId: realProyectoId,
               fecha: item.fecha,
-              concepto: item.concepto,
-              descripcion: item.descripcion,
+              concepto: conceptoValido,
+              descripcion: item.descripcion || 'Sin descripción',
               colaboradorId: item.colaboradorId,
               hsInicio: item.hsInicio,
               hsFin: item.hsFin,
               hsTotal: item.hsTotal,
               cantidad: item.cantidad,
               precioUnitario: item.precioUnitario,
-              total: item.total
+              total
             })
           });
           guardados++;
