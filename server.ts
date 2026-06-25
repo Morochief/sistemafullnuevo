@@ -1492,6 +1492,9 @@ app.post('/api/import-excel', requireAuth, uploadSingleExcel, async (req, res) =
       // Skip row if client and project are completely empty
       if (!clientName && !projectName && !descripcion) continue;
 
+      // Skip header rows repeated in the middle of the Excel (e.g. "Cliente", "Proyecto")
+      if (clientName.toLowerCase() === 'cliente' || projectName.toLowerCase() === 'proyecto') continue;
+
       // MAPEO INTELIGENTE: Look up or create Client
       let targetClient = tempClientes.find(c => c.nombre.toLowerCase() === clientName.toLowerCase());
       if (!targetClient && clientName) {
