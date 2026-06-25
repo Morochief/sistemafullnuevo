@@ -790,6 +790,19 @@ app.post('/api/registros', requireAuth, async (req, res) => {
   const validation = validateSchema(RegistroItemSchema, req.body);
   
   if (!validation.valid) {
+    logger.error('[DEBUG /api/registros] Zod validation failed:', JSON.stringify({
+      errors: validation.errors,
+      body: {
+        clienteId: req.body?.clienteId,
+        proyectoId: req.body?.proyectoId,
+        fecha: req.body?.fecha,
+        concepto: req.body?.concepto,
+        cantidad: req.body?.cantidad,
+        precioUnitario: req.body?.precioUnitario,
+        total: req.body?.total,
+        descripcion: req.body?.descripcion?.substring(0, 30),
+      }
+    }));
     return res.status(400).json({
       success: false,
       error: {
@@ -910,7 +923,12 @@ app.post('/api/registros', requireAuth, async (req, res) => {
       message: 'Registro creado con éxito'
     } as ApiResponse);
   } catch (error: any) {
-    logger.error('Error creating registro:', error);
+    logger.error('[DEBUG] Error creating registro:', error?.message);
+    logger.error('[DEBUG] Prisma error details:', JSON.stringify({
+      code: error?.code,
+      meta: error?.meta,
+      message: error?.message
+    }));
     
     res.status(500).json({
       success: false,
