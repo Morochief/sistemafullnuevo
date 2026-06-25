@@ -440,13 +440,13 @@ export default function App() {
       // Mapas de IDs locales (generados por ExcelImporter) → IDs reales del backend
       const clienteIdMap = new Map<string, string>();
       const proyectoIdMap = new Map<string, string>();
+      const colaboradorIdMap = new Map<string, string>(); // local → real (o '' si no existe)
 
       // 1. Clientes: verificar por NOMBRE (no por ID local que cambia cada importación)
       const clientesPorNombre = new Map(dbState.clientes.map(c => [c.nombre.toLowerCase().trim(), c.id]));
       for (const cliente of newFullDbState.clientes) {
         const nombreNorm = cliente.nombre.toLowerCase().trim();
         if (clientesPorNombre.has(nombreNorm)) {
-          // Ya existe en Supabase — mapear ID local → ID real existente
           clienteIdMap.set(cliente.id, clientesPorNombre.get(nombreNorm)!);
         } else {
           try {
@@ -457,13 +457,13 @@ export default function App() {
             });
             if (res.success && res.data) {
               clienteIdMap.set(cliente.id, res.data.id);
-              clientesPorNombre.set(nombreNorm, res.data.id); // evitar duplicar en misma importación
+              clientesPorNombre.set(nombreNorm, res.data.id);
             }
           } catch { errores++; clienteIdMap.set(cliente.id, cliente.id); }
         }
       }
 
-      // 2. Proyectos: verificar por NOMBRE + clienteId real (no por ID local)
+      // 2. Proyectos: verificar por NOMBRE + clienteId real
       const proyectosPorNombre = new Map(
         dbState.proyectos.map(p => [`${p.clienteId}::${p.nombre.toLowerCase().trim()}`, p.id])
       );
@@ -487,13 +487,44 @@ export default function App() {
         }
       }
 
-      // 3. Registros nuevos: sustituir IDs locales por IDs reales
+      // 3. Colaboradores: crear nuevos, mapear existentes por nombre
+      // Si no se resuelve a un ID real → se enviará null (evita FK violation P2003)
+      const colaboradoresPorNombre = new Map(dbState.colaboradores.map(c => [c.nombre.toLowerCase().trim(), c.id]));
+      const colaboradoresExistentesIds = new Set(dbState.colaboradores.map(c => c.id));
+      for (const colab of (newFullDbState.colaboradores || [])) {
+        if (colaboradoresExistentesIds.has(colab.id)) {
+          colaboradorIdMap.set(colab.id, colab.id);
+        } else {
+          const nombreNorm = colab.nombre.toLowerCase().trim();
+          if (colaboradoresPorNombre.has(nombreNorm)) {
+            colaboradorIdMap.set(colab.id, colaboradoresPorNombre.get(nombreNorm)!);
+          } else {
+            try {
+              const res = await authFetchJSON('/api/colaboradores', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nombre: colab.nombre, rol: colab.rol, tarifaSugerida: colab.tarifaSugerida })
+              });
+              if (res.success && res.data) {
+                colaboradorIdMap.set(colab.id, res.data.id);
+                colaboradoresPorNombre.set(nombreNorm, res.data.id);
+              }
+            } catch { colaboradorIdMap.set(colab.id, ''); }
+          }
+        }
+      }
+
+      // 4. Registros nuevos: sustituir IDs locales por IDs reales
       const registrosExistentes = new Set(dbState.registros.map(r => r.id));
       const registrosNuevos = newFullDbState.registros.filter(r => !registrosExistentes.has(r.id));
 
       for (const item of registrosNuevos) {
         const realClienteId = clienteIdMap.get(item.clienteId) || item.clienteId;
         const realProyectoId = proyectoIdMap.get(item.proyectoId) || item.proyectoId;
+        // Resolver colaboradorId: solo enviar si existe en Supabase, sino null (evita P2003)
+        const rawColabId = item.colaboradorId || '';
+        const mappedColabId = rawColabId ? colaboradorIdMap.get(rawColabId) : '';
+        const realColaboradorId = mappedColabId || null; // vacío o undefined → null
 
         // Validación defensiva: saltar registros con datos inválidos que Zod rechazaría
         if (!realClienteId || !realProyectoId) { errores++; continue; }
@@ -516,7 +547,7 @@ export default function App() {
               fecha: item.fecha,
               concepto: conceptoValido,
               descripcion: item.descripcion || 'Sin descripción',
-              colaboradorId: item.colaboradorId,
+              colaboradorId: realColaboradorId,
               hsInicio: item.hsInicio,
               hsFin: item.hsFin,
               hsTotal: item.hsTotal,
