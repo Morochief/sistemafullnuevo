@@ -30,12 +30,18 @@ interface AdminPanelProps {
   data: DatabaseState;
   onAddRegistro: (registro: any) => Promise<boolean>;
   onAddCliente: (cliente: Cliente) => void;
+  onEditCliente: (id: string, data: Partial<Cliente>) => Promise<void>;
+  onDeleteCliente: (id: string) => Promise<void>;
   onAddProyecto: (proyecto: Proyecto) => void;
+  onEditProyecto: (id: string, data: Partial<Proyecto>) => Promise<void>;
+  onDeleteProyecto: (id: string) => Promise<void>;
   onAddColaborador: (colaborador: Colaborador) => void;
+  onEditColaborador: (id: string, data: Partial<Colaborador>) => Promise<void>;
+  onDeleteColaborador: (id: string) => Promise<void>;
   onResetDatabase: () => void;
   onRefresh?: () => Promise<void>;
-  initialVehicleEditId?: string | null; // ID del registro de vehículo a editar
-  initialSubTab?: string; // Sub-tab inicial a mostrar
+  initialVehicleEditId?: string | null;
+  initialSubTab?: string;
 }
 
 // ============================================================================
@@ -526,6 +532,8 @@ interface ClientesTabProps {
   newClientCode: string;
   setNewClientCode: (code: string) => void;
   onCreateClient: (e: React.FormEvent) => void;
+  onEditCliente: (id: string, data: Partial<Cliente>) => Promise<void>;
+  onDeleteCliente: (id: string) => Promise<void>;
 }
 
 function ClientesTab({
@@ -534,8 +542,25 @@ function ClientesTab({
   setNewClientName,
   newClientCode,
   setNewClientCode,
-  onCreateClient
+  onCreateClient,
+  onEditCliente,
+  onDeleteCliente,
 }: ClientesTabProps) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editNombre, setEditNombre] = useState('');
+  const [editCodigo, setEditCodigo] = useState('');
+
+  const startEdit = (c: Cliente) => {
+    setEditingId(c.id);
+    setEditNombre(c.nombre);
+    setEditCodigo(c.codigo || '');
+  };
+  const cancelEdit = () => setEditingId(null);
+  const submitEdit = async () => {
+    if (!editNombre.trim()) return;
+    await onEditCliente(editingId!, { nombre: editNombre.trim(), codigo: editCodigo.trim() });
+    setEditingId(null);
+  };
   return (
     <motion.div 
       initial={{ opacity: 0, x: 20 }}
@@ -592,13 +617,30 @@ function ClientesTab({
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {data.clientes.map(c => (
-            <DataCard
-              key={c.id}
-              title={c.nombre}
-              subtitle={`ID: ${c.id} | Código: ${c.codigo || 'S/N'}`}
-              badge={{ label: 'Vigente', color: 'emerald' }}
-              icon={<Building2 className="w-4 h-4" />}
-            />
+            <div key={c.id}>
+              {editingId === c.id ? (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4 rounded-2xl bg-white/5 border border-emerald-500/30 space-y-3">
+                  <input value={editNombre} onChange={e => setEditNombre(e.target.value)} placeholder="Nombre" className="w-full glass-input rounded-xl px-3 py-2 text-sm" />
+                  <input value={editCodigo} onChange={e => setEditCodigo(e.target.value)} placeholder="Código" className="w-full glass-input rounded-xl px-3 py-2 text-sm" />
+                  <div className="flex gap-2">
+                    <button onClick={submitEdit} className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-all">Guardar</button>
+                    <button onClick={cancelEdit} className="flex-1 py-1.5 bg-white/5 hover:bg-white/10 text-slate-400 text-xs rounded-lg transition-all">Cancelar</button>
+                  </div>
+                </motion.div>
+              ) : (
+                <DataCard
+                  title={c.nombre}
+                  subtitle={`ID: ${c.id} | Código: ${c.codigo || 'S/N'}`}
+                  badge={{ label: 'Vigente', color: 'emerald' }}
+                  icon={<Building2 className="w-4 h-4" />}
+                >
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={() => startEdit(c)} className="text-[10px] px-2 py-1 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 rounded-lg border border-blue-500/20 transition-all">Editar</button>
+                    <button onClick={() => { if(confirm(`¿Eliminar cliente "${c.nombre}"? Se eliminarán sus proyectos y registros.`)) onDeleteCliente(c.id); }} className="text-[10px] px-2 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 rounded-lg border border-rose-500/20 transition-all">Eliminar</button>
+                  </div>
+                </DataCard>
+              )}
+            </div>
           ))}
         </div>
       </AdminSection>
@@ -617,6 +659,8 @@ interface ProyectosTabProps {
   newProjName: string;
   setNewProjName: (name: string) => void;
   onCreateProject: (e: React.FormEvent) => void;
+  onEditProyecto: (id: string, data: Partial<Proyecto>) => Promise<void>;
+  onDeleteProyecto: (id: string) => Promise<void>;
 }
 
 function ProyectosTab({
@@ -625,8 +669,21 @@ function ProyectosTab({
   setNewProjClientId,
   newProjName,
   setNewProjName,
-  onCreateProject
+  onCreateProject,
+  onEditProyecto,
+  onDeleteProyecto,
 }: ProyectosTabProps) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editNombre, setEditNombre] = useState('');
+  const [editEstado, setEditEstado] = useState<'Pendiente' | 'En Proceso' | 'Completado'>('En Proceso');
+
+  const startEdit = (p: Proyecto) => { setEditingId(p.id); setEditNombre(p.nombre); setEditEstado(p.estado); };
+  const cancelEdit = () => setEditingId(null);
+  const submitEdit = async () => {
+    if (!editNombre.trim()) return;
+    await onEditProyecto(editingId!, { nombre: editNombre.trim(), estado: editEstado });
+    setEditingId(null);
+  };
   return (
     <motion.div 
       initial={{ opacity: 0, x: 20 }}
@@ -689,13 +746,34 @@ function ProyectosTab({
           {data.proyectos.map(p => {
             const client = data.clientes.find(c => c.id === p.clienteId);
             return (
-              <DataCard
-                key={p.id}
-                title={p.nombre}
-                subtitle={`Cliente: ${client ? client.nombre : 'Desconocido'}`}
-                badge={{ label: p.estado, color: 'cyan' }}
-                icon={<FolderGit2 className="w-4 h-4" />}
-              />
+              <div key={p.id}>
+                {editingId === p.id ? (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4 rounded-2xl bg-white/5 border border-cyan-500/30 space-y-3">
+                    <input value={editNombre} onChange={e => setEditNombre(e.target.value)} placeholder="Nombre del proyecto" className="w-full glass-input rounded-xl px-3 py-2 text-sm" />
+                    <select value={editEstado} onChange={e => setEditEstado(e.target.value as any)} className="w-full glass-select rounded-xl px-3 py-2 text-sm">
+                      <option value="Pendiente">Pendiente</option>
+                      <option value="En Proceso">En Proceso</option>
+                      <option value="Completado">Completado</option>
+                    </select>
+                    <div className="flex gap-2">
+                      <button onClick={submitEdit} className="flex-1 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold rounded-lg transition-all">Guardar</button>
+                      <button onClick={cancelEdit} className="flex-1 py-1.5 bg-white/5 hover:bg-white/10 text-slate-400 text-xs rounded-lg transition-all">Cancelar</button>
+                    </div>
+                  </motion.div>
+                ) : (
+                  <DataCard
+                    title={p.nombre}
+                    subtitle={`Cliente: ${client ? client.nombre : 'Desconocido'}`}
+                    badge={{ label: p.estado, color: 'cyan' }}
+                    icon={<FolderGit2 className="w-4 h-4" />}
+                  >
+                    <div className="flex gap-2 mt-2">
+                      <button onClick={() => startEdit(p)} className="text-[10px] px-2 py-1 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 rounded-lg border border-blue-500/20 transition-all">Editar</button>
+                      <button onClick={() => { if(confirm(`¿Eliminar proyecto "${p.nombre}"?`)) onDeleteProyecto(p.id); }} className="text-[10px] px-2 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 rounded-lg border border-rose-500/20 transition-all">Eliminar</button>
+                    </div>
+                  </DataCard>
+                )}
+              </div>
             );
           })}
         </div>
@@ -717,6 +795,8 @@ interface ColaboradoresTabProps {
   newColabTarif: string;
   setNewColabTarif: (tarif: string) => void;
   onCreateCollaborator: (e: React.FormEvent) => void;
+  onEditColaborador: (id: string, data: Partial<Colaborador>) => Promise<void>;
+  onDeleteColaborador: (id: string) => Promise<void>;
 }
 
 function ColaboradoresTab({
@@ -727,8 +807,22 @@ function ColaboradoresTab({
   setNewColabRol,
   newColabTarif,
   setNewColabTarif,
-  onCreateCollaborator
+  onCreateCollaborator,
+  onEditColaborador,
+  onDeleteColaborador,
 }: ColaboradoresTabProps) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editNombre, setEditNombre] = useState('');
+  const [editRol, setEditRol] = useState('');
+  const [editTarifa, setEditTarifa] = useState('');
+
+  const startEdit = (c: Colaborador) => { setEditingId(c.id); setEditNombre(c.nombre); setEditRol(c.rol || ''); setEditTarifa(String(c.tarifaSugerida)); };
+  const cancelEdit = () => setEditingId(null);
+  const submitEdit = async () => {
+    if (!editNombre.trim()) return;
+    await onEditColaborador(editingId!, { nombre: editNombre.trim(), rol: editRol.trim(), tarifaSugerida: parseFloat(editTarifa) || 350 });
+    setEditingId(null);
+  };
   return (
     <motion.div 
       initial={{ opacity: 0, x: 20 }}
@@ -795,17 +889,34 @@ function ColaboradoresTab({
       >
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {data.colaboradores.map(c => (
-            <DataCard
-              key={c.id}
-              title={c.nombre}
-              subtitle={c.rol || 'Operario'}
-              badge={{ label: 'Activo', color: 'pink' }}
-              icon={<Users className="w-4 h-4" />}
-            >
-              <div className="text-[10px] text-pink-300 font-mono mt-2">
-                Tarifa: Gs. {c.tarifaSugerida || 350}/min (~Gs. {((c.tarifaSugerida || 350) * 60).toLocaleString('es-PY')}/hora)
-              </div>
-            </DataCard>
+            <div key={c.id}>
+              {editingId === c.id ? (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4 rounded-2xl bg-white/5 border border-pink-500/30 space-y-3">
+                  <input value={editNombre} onChange={e => setEditNombre(e.target.value)} placeholder="Nombre" className="w-full glass-input rounded-xl px-3 py-2 text-sm" />
+                  <input value={editRol} onChange={e => setEditRol(e.target.value)} placeholder="Rol" className="w-full glass-input rounded-xl px-3 py-2 text-sm" />
+                  <input type="number" value={editTarifa} onChange={e => setEditTarifa(e.target.value)} placeholder="Tarifa/min" className="w-full glass-input rounded-xl px-3 py-2 text-sm" />
+                  <div className="flex gap-2">
+                    <button onClick={submitEdit} className="flex-1 py-1.5 bg-pink-600 hover:bg-pink-500 text-white text-xs font-bold rounded-lg transition-all">Guardar</button>
+                    <button onClick={cancelEdit} className="flex-1 py-1.5 bg-white/5 hover:bg-white/10 text-slate-400 text-xs rounded-lg transition-all">Cancelar</button>
+                  </div>
+                </motion.div>
+              ) : (
+                <DataCard
+                  title={c.nombre}
+                  subtitle={c.rol || 'Operario'}
+                  badge={{ label: 'Activo', color: 'pink' }}
+                  icon={<Users className="w-4 h-4" />}
+                >
+                  <div className="text-[10px] text-pink-300 font-mono mt-2">
+                    Tarifa: Gs. {c.tarifaSugerida || 350}/min (~Gs. {((c.tarifaSugerida || 350) * 60).toLocaleString('es-PY')}/hora)
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={() => startEdit(c)} className="text-[10px] px-2 py-1 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 rounded-lg border border-blue-500/20 transition-all">Editar</button>
+                    <button onClick={() => { if(confirm(`¿Eliminar colaborador "${c.nombre}"?`)) onDeleteColaborador(c.id); }} className="text-[10px] px-2 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 rounded-lg border border-rose-500/20 transition-all">Eliminar</button>
+                  </div>
+                </DataCard>
+              )}
+            </div>
           ))}
         </div>
       </AdminSection>
@@ -821,8 +932,14 @@ export default function AdminPanel({
   data,
   onAddRegistro,
   onAddCliente,
+  onEditCliente,
+  onDeleteCliente,
   onAddProyecto,
+  onEditProyecto,
+  onDeleteProyecto,
   onAddColaborador,
+  onEditColaborador,
+  onDeleteColaborador,
   onResetDatabase,
   onRefresh,
   initialVehicleEditId,
@@ -1096,6 +1213,8 @@ export default function AdminPanel({
               newClientCode={newClientCode}
               setNewClientCode={setNewClientCode}
               onCreateClient={handleCreateClient}
+              onEditCliente={onEditCliente}
+              onDeleteCliente={onDeleteCliente}
             />
           )}
 
@@ -1108,6 +1227,8 @@ export default function AdminPanel({
               newProjName={newProjName}
               setNewProjName={setNewProjName}
               onCreateProject={handleCreateProject}
+              onEditProyecto={onEditProyecto}
+              onDeleteProyecto={onDeleteProyecto}
             />
           )}
 
@@ -1122,6 +1243,8 @@ export default function AdminPanel({
               newColabTarif={newColabTarif}
               setNewColabTarif={setNewColabTarif}
               onCreateCollaborator={handleCreateCollaborator}
+              onEditColaborador={onEditColaborador}
+              onDeleteColaborador={onDeleteColaborador}
             />
           )}
 

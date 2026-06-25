@@ -44,8 +44,14 @@ const mockProps = {
   data: mockData,
   onAddRegistro: vi.fn().mockResolvedValue(true),
   onAddCliente: vi.fn(),
+  onEditCliente: vi.fn().mockResolvedValue(undefined),
+  onDeleteCliente: vi.fn().mockResolvedValue(undefined),
   onAddProyecto: vi.fn(),
+  onEditProyecto: vi.fn().mockResolvedValue(undefined),
+  onDeleteProyecto: vi.fn().mockResolvedValue(undefined),
   onAddColaborador: vi.fn(),
+  onEditColaborador: vi.fn().mockResolvedValue(undefined),
+  onDeleteColaborador: vi.fn().mockResolvedValue(undefined),
   onResetDatabase: vi.fn(),
   onRefresh: vi.fn().mockResolvedValue(undefined)
 };

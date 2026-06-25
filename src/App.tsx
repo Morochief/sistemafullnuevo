@@ -306,17 +306,128 @@ export default function App() {
 
   const handleAddClienteObj = async (newCliente: Cliente) => {
     if (!dbState) return;
-    await handleSaveState({ ...dbState, clientes: [...dbState.clientes, newCliente] });
+    try {
+      const res = await authFetchJSON('/api/clientes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre: newCliente.nombre, codigo: newCliente.codigo })
+      });
+      if (res.success && res.data) {
+        setDbState({ ...dbState, clientes: [...dbState.clientes, res.data] });
+      }
+    } catch (err: any) {
+      alert('Error al crear cliente: ' + (err.message || ''));
+    }
+  };
+
+  const handleEditClienteObj = async (id: string, data: Partial<Cliente>) => {
+    if (!dbState) return;
+    try {
+      const res = await authFetchJSON(`/api/clientes/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (res.success && res.data) {
+        setDbState({ ...dbState, clientes: dbState.clientes.map(c => c.id === id ? res.data : c) });
+      }
+    } catch (err: any) {
+      alert('Error al actualizar cliente: ' + (err.message || ''));
+    }
+  };
+
+  const handleDeleteClienteObj = async (id: string) => {
+    if (!dbState) return;
+    try {
+      await authFetchJSON(`/api/clientes/${id}`, { method: 'DELETE' });
+      setDbState({ ...dbState, clientes: dbState.clientes.filter(c => c.id !== id) });
+    } catch (err: any) {
+      alert('Error al eliminar cliente: ' + (err.message || ''));
+    }
   };
 
   const handleAddProyectoObj = async (newProyecto: Proyecto) => {
     if (!dbState) return;
-    await handleSaveState({ ...dbState, proyectos: [...dbState.proyectos, newProyecto] });
+    try {
+      const res = await authFetchJSON('/api/proyectos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clienteId: newProyecto.clienteId, nombre: newProyecto.nombre, estado: newProyecto.estado, fechaInicio: newProyecto.fechaInicio })
+      });
+      if (res.success && res.data) {
+        setDbState({ ...dbState, proyectos: [...dbState.proyectos, res.data] });
+      }
+    } catch (err: any) {
+      alert('Error al crear proyecto: ' + (err.message || ''));
+    }
+  };
+
+  const handleEditProyectoObj = async (id: string, data: Partial<Proyecto>) => {
+    if (!dbState) return;
+    try {
+      const res = await authFetchJSON(`/api/proyectos/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (res.success && res.data) {
+        setDbState({ ...dbState, proyectos: dbState.proyectos.map(p => p.id === id ? res.data : p) });
+      }
+    } catch (err: any) {
+      alert('Error al actualizar proyecto: ' + (err.message || ''));
+    }
+  };
+
+  const handleDeleteProyectoObj = async (id: string) => {
+    if (!dbState) return;
+    try {
+      await authFetchJSON(`/api/proyectos/${id}`, { method: 'DELETE' });
+      setDbState({ ...dbState, proyectos: dbState.proyectos.filter(p => p.id !== id) });
+    } catch (err: any) {
+      alert('Error al eliminar proyecto: ' + (err.message || ''));
+    }
   };
 
   const handleAddColaboradorObj = async (newColaborador: Colaborador) => {
     if (!dbState) return;
-    await handleSaveState({ ...dbState, colaboradores: [...dbState.colaboradores, newColaborador] });
+    try {
+      const res = await authFetchJSON('/api/colaboradores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre: newColaborador.nombre, rol: newColaborador.rol, tarifaSugerida: newColaborador.tarifaSugerida })
+      });
+      if (res.success && res.data) {
+        setDbState({ ...dbState, colaboradores: [...dbState.colaboradores, res.data] });
+      }
+    } catch (err: any) {
+      alert('Error al crear colaborador: ' + (err.message || ''));
+    }
+  };
+
+  const handleEditColaboradorObj = async (id: string, data: Partial<Colaborador>) => {
+    if (!dbState) return;
+    try {
+      const res = await authFetchJSON(`/api/colaboradores/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (res.success && res.data) {
+        setDbState({ ...dbState, colaboradores: dbState.colaboradores.map(c => c.id === id ? res.data : c) });
+      }
+    } catch (err: any) {
+      alert('Error al actualizar colaborador: ' + (err.message || ''));
+    }
+  };
+
+  const handleDeleteColaboradorObj = async (id: string) => {
+    if (!dbState) return;
+    try {
+      await authFetchJSON(`/api/colaboradores/${id}`, { method: 'DELETE' });
+      setDbState({ ...dbState, colaboradores: dbState.colaboradores.filter(c => c.id !== id) });
+    } catch (err: any) {
+      alert('Error al eliminar colaborador: ' + (err.message || ''));
+    }
   };
 
   const handleImportConfirmed = async (newFullDbState: DatabaseState) => {
@@ -579,8 +690,14 @@ export default function App() {
                 data={dbState}
                 onAddRegistro={handleAddManualRegistro}
                 onAddCliente={handleAddClienteObj}
+                onEditCliente={handleEditClienteObj}
+                onDeleteCliente={handleDeleteClienteObj}
                 onAddProyecto={handleAddProyectoObj}
+                onEditProyecto={handleEditProyectoObj}
+                onDeleteProyecto={handleDeleteProyectoObj}
                 onAddColaborador={handleAddColaboradorObj}
+                onEditColaborador={handleEditColaboradorObj}
+                onDeleteColaborador={handleDeleteColaboradorObj}
                 onResetDatabase={handleResetDatabase}
                 onRefresh={fetchDbState}
                 initialVehicleEditId={vehicleEditId}

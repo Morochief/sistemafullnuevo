@@ -2672,6 +2672,182 @@ app.patch('/api/vehiculo/registro/:id', requireAuth, requireAdmin, async (req, r
   }
 });
 
+// ═══════════════════════════════════════════════════════════════
+// CLIENTES CRUD
+// ═══════════════════════════════════════════════════════════════
+
+app.post('/api/clientes', requireAuth, requireAdmin, async (req, res) => {
+  const { nombre, codigo } = req.body;
+  if (!nombre?.trim()) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Nombre requerido' } } as ApiResponse);
+  try {
+    const cliente = await prisma.cliente.create({
+      data: {
+        id: generateId('cli'),
+        nombre: nombre.trim(),
+        codigo: (codigo || nombre.substring(0, 4).toUpperCase()).trim(),
+        fechaCreacion: new Date(),
+      }
+    });
+    auditLog({ usuario: req.user!.usuario, accion: 'create_cliente', recurso: `/api/clientes/${cliente.id}`, resultado: 'success', ip: getClientIp(req) });
+    res.status(201).json({ success: true, data: { ...cliente, fechaCreacion: cliente.fechaCreacion.toISOString().substring(0, 10) }, message: 'Cliente creado' } as ApiResponse);
+  } catch (error: any) {
+    logger.error('Error creating cliente:', error);
+    res.status(500).json({ success: false, error: { code: 'CREATE_ERROR', message: 'Error al crear cliente' } } as ApiResponse);
+  }
+});
+
+app.put('/api/clientes/:id', requireAuth, requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { nombre, codigo } = req.body;
+  if (!nombre?.trim()) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Nombre requerido' } } as ApiResponse);
+  try {
+    const existing = await prisma.cliente.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Cliente no encontrado' } } as ApiResponse);
+    const updated = await prisma.cliente.update({
+      where: { id },
+      data: { nombre: nombre.trim(), codigo: codigo ? codigo.trim() : existing.codigo }
+    });
+    auditLog({ usuario: req.user!.usuario, accion: 'update_cliente', recurso: `/api/clientes/${id}`, resultado: 'success', ip: getClientIp(req) });
+    res.json({ success: true, data: { ...updated, fechaCreacion: updated.fechaCreacion.toISOString().substring(0, 10) }, message: 'Cliente actualizado' } as ApiResponse);
+  } catch (error: any) {
+    logger.error('Error updating cliente:', error);
+    res.status(500).json({ success: false, error: { code: 'UPDATE_ERROR', message: 'Error al actualizar cliente' } } as ApiResponse);
+  }
+});
+
+app.delete('/api/clientes/:id', requireAuth, requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const existing = await prisma.cliente.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Cliente no encontrado' } } as ApiResponse);
+    await prisma.cliente.delete({ where: { id } });
+    auditLog({ usuario: req.user!.usuario, accion: 'delete_cliente', recurso: `/api/clientes/${id}`, resultado: 'success', ip: getClientIp(req) });
+    res.json({ success: true, message: 'Cliente eliminado' } as ApiResponse);
+  } catch (error: any) {
+    logger.error('Error deleting cliente:', error);
+    res.status(500).json({ success: false, error: { code: 'DELETE_ERROR', message: 'Error al eliminar cliente. Verificá que no tenga proyectos o registros asociados.' } } as ApiResponse);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// PROYECTOS CRUD
+// ═══════════════════════════════════════════════════════════════
+
+app.post('/api/proyectos', requireAuth, requireAdmin, async (req, res) => {
+  const { clienteId, nombre, estado, fechaInicio } = req.body;
+  if (!nombre?.trim() || !clienteId) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Nombre y clienteId requeridos' } } as ApiResponse);
+  try {
+    const cliente = await prisma.cliente.findUnique({ where: { id: clienteId } });
+    if (!cliente) return res.status(400).json({ success: false, error: { code: 'INVALID_REFERENCE', message: 'Cliente no encontrado' } } as ApiResponse);
+    const estadoEnum = estado === 'En Proceso' ? 'EN_PROCESO' as const : estado === 'Completado' ? 'COMPLETADO' as const : 'PENDIENTE' as const;
+    const proyecto = await prisma.proyecto.create({
+      data: {
+        id: generateId('pro'),
+        clienteId,
+        nombre: nombre.trim(),
+        estado: estadoEnum,
+        fechaInicio: fechaInicio ? new Date(fechaInicio) : new Date(),
+      }
+    });
+    auditLog({ usuario: req.user!.usuario, accion: 'create_proyecto', recurso: `/api/proyectos/${proyecto.id}`, resultado: 'success', ip: getClientIp(req) });
+    res.status(201).json({ success: true, data: { ...proyecto, estado: proyecto.estado === 'EN_PROCESO' ? 'En Proceso' : proyecto.estado === 'COMPLETADO' ? 'Completado' : 'Pendiente', fechaInicio: proyecto.fechaInicio.toISOString().substring(0, 10) }, message: 'Proyecto creado' } as ApiResponse);
+  } catch (error: any) {
+    logger.error('Error creating proyecto:', error);
+    res.status(500).json({ success: false, error: { code: 'CREATE_ERROR', message: 'Error al crear proyecto' } } as ApiResponse);
+  }
+});
+
+app.put('/api/proyectos/:id', requireAuth, requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { nombre, estado, clienteId } = req.body;
+  if (!nombre?.trim()) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Nombre requerido' } } as ApiResponse);
+  try {
+    const existing = await prisma.proyecto.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Proyecto no encontrado' } } as ApiResponse);
+    const estadoEnum = estado === 'En Proceso' ? 'EN_PROCESO' as const : estado === 'Completado' ? 'COMPLETADO' as const : 'PENDIENTE' as const;
+    const updated = await prisma.proyecto.update({
+      where: { id },
+      data: { nombre: nombre.trim(), estado: estadoEnum, clienteId: clienteId || existing.clienteId }
+    });
+    auditLog({ usuario: req.user!.usuario, accion: 'update_proyecto', recurso: `/api/proyectos/${id}`, resultado: 'success', ip: getClientIp(req) });
+    res.json({ success: true, data: { ...updated, estado: updated.estado === 'EN_PROCESO' ? 'En Proceso' : updated.estado === 'COMPLETADO' ? 'Completado' : 'Pendiente', fechaInicio: updated.fechaInicio.toISOString().substring(0, 10) }, message: 'Proyecto actualizado' } as ApiResponse);
+  } catch (error: any) {
+    logger.error('Error updating proyecto:', error);
+    res.status(500).json({ success: false, error: { code: 'UPDATE_ERROR', message: 'Error al actualizar proyecto' } } as ApiResponse);
+  }
+});
+
+app.delete('/api/proyectos/:id', requireAuth, requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const existing = await prisma.proyecto.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Proyecto no encontrado' } } as ApiResponse);
+    await prisma.proyecto.delete({ where: { id } });
+    auditLog({ usuario: req.user!.usuario, accion: 'delete_proyecto', recurso: `/api/proyectos/${id}`, resultado: 'success', ip: getClientIp(req) });
+    res.json({ success: true, message: 'Proyecto eliminado' } as ApiResponse);
+  } catch (error: any) {
+    logger.error('Error deleting proyecto:', error);
+    res.status(500).json({ success: false, error: { code: 'DELETE_ERROR', message: 'Error al eliminar proyecto. Verificá que no tenga registros asociados.' } } as ApiResponse);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// COLABORADORES CRUD
+// ═══════════════════════════════════════════════════════════════
+
+app.post('/api/colaboradores', requireAuth, requireAdmin, async (req, res) => {
+  const { nombre, rol, tarifaSugerida } = req.body;
+  if (!nombre?.trim()) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Nombre requerido' } } as ApiResponse);
+  try {
+    const colaborador = await prisma.colaborador.create({
+      data: {
+        id: generateId('col'),
+        nombre: nombre.trim(),
+        rol: rol?.trim() || null,
+        tarifaSugerida: tarifaSugerida ? new Decimal(tarifaSugerida) : null,
+      }
+    });
+    auditLog({ usuario: req.user!.usuario, accion: 'create_colaborador', recurso: `/api/colaboradores/${colaborador.id}`, resultado: 'success', ip: getClientIp(req) });
+    res.status(201).json({ success: true, data: { ...colaborador, tarifaSugerida: colaborador.tarifaSugerida ? parseFloat(colaborador.tarifaSugerida.toString()) : 0 }, message: 'Colaborador creado' } as ApiResponse);
+  } catch (error: any) {
+    logger.error('Error creating colaborador:', error);
+    res.status(500).json({ success: false, error: { code: 'CREATE_ERROR', message: 'Error al crear colaborador' } } as ApiResponse);
+  }
+});
+
+app.put('/api/colaboradores/:id', requireAuth, requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { nombre, rol, tarifaSugerida } = req.body;
+  if (!nombre?.trim()) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Nombre requerido' } } as ApiResponse);
+  try {
+    const existing = await prisma.colaborador.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Colaborador no encontrado' } } as ApiResponse);
+    const updated = await prisma.colaborador.update({
+      where: { id },
+      data: { nombre: nombre.trim(), rol: rol?.trim() || existing.rol, tarifaSugerida: tarifaSugerida ? new Decimal(tarifaSugerida) : existing.tarifaSugerida }
+    });
+    auditLog({ usuario: req.user!.usuario, accion: 'update_colaborador', recurso: `/api/colaboradores/${id}`, resultado: 'success', ip: getClientIp(req) });
+    res.json({ success: true, data: { ...updated, tarifaSugerida: updated.tarifaSugerida ? parseFloat(updated.tarifaSugerida.toString()) : 0 }, message: 'Colaborador actualizado' } as ApiResponse);
+  } catch (error: any) {
+    logger.error('Error updating colaborador:', error);
+    res.status(500).json({ success: false, error: { code: 'UPDATE_ERROR', message: 'Error al actualizar colaborador' } } as ApiResponse);
+  }
+});
+
+app.delete('/api/colaboradores/:id', requireAuth, requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const existing = await prisma.colaborador.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Colaborador no encontrado' } } as ApiResponse);
+    await prisma.colaborador.delete({ where: { id } });
+    auditLog({ usuario: req.user!.usuario, accion: 'delete_colaborador', recurso: `/api/colaboradores/${id}`, resultado: 'success', ip: getClientIp(req) });
+    res.json({ success: true, message: 'Colaborador eliminado' } as ApiResponse);
+  } catch (error: any) {
+    logger.error('Error deleting colaborador:', error);
+    res.status(500).json({ success: false, error: { code: 'DELETE_ERROR', message: 'Error al eliminar colaborador.' } } as ApiResponse);
+  }
+});
+
 // Servir archivos estáticos de uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
