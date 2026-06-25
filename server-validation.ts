@@ -53,15 +53,6 @@ export const RegistroItemSchema = z.object({
   proyectoId: z.string().min(1, 'Proyecto requerido'),
   fecha: z.string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha debe estar en formato YYYY-MM-DD')
-    .refine(
-      (date) => {
-        const inputDate = new Date(date);
-        const today = new Date();
-        today.setHours(23, 59, 59, 999);
-        return inputDate <= today;
-      },
-      { message: 'La fecha no puede ser futura' }
-    )
     .optional(),
   concepto: z.enum(['MO', 'Insumo', 'Otros']).optional(),
   descripcion: z.string()
