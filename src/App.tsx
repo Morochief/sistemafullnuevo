@@ -431,10 +431,92 @@ export default function App() {
   };
 
   const handleImportConfirmed = async (newFullDbState: DatabaseState) => {
-    const success = await handleSaveState(newFullDbState);
-    if (success) {
-      alert('Planilla Excel importada y guardada con éxito.');
+    if (!dbState) return;
+
+    let errores = 0;
+    let guardados = 0;
+
+    try {
+      // Mapas de IDs locales (generados por ExcelImporter) → IDs reales del backend
+      const clienteIdMap = new Map<string, string>();
+      const proyectoIdMap = new Map<string, string>();
+
+      // 1. Clientes: los existentes mapean a sí mismos; los nuevos capturan el ID real del backend
+      const clientesExistentes = new Map(dbState.clientes.map(c => [c.id, c.id]));
+      for (const cliente of newFullDbState.clientes) {
+        if (clientesExistentes.has(cliente.id)) {
+          clienteIdMap.set(cliente.id, cliente.id);
+        } else {
+          try {
+            const res = await authFetchJSON('/api/clientes', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ nombre: cliente.nombre, codigo: cliente.codigo })
+            });
+            clienteIdMap.set(cliente.id, res.success && res.data ? res.data.id : cliente.id);
+          } catch { errores++; clienteIdMap.set(cliente.id, cliente.id); }
+        }
+      }
+
+      // 2. Proyectos: usar el ID real del cliente al crear
+      const proyectosExistentes = new Map(dbState.proyectos.map(p => [p.id, p.id]));
+      for (const proyecto of newFullDbState.proyectos) {
+        if (proyectosExistentes.has(proyecto.id)) {
+          proyectoIdMap.set(proyecto.id, proyecto.id);
+        } else {
+          const realClienteId = clienteIdMap.get(proyecto.clienteId) || proyecto.clienteId;
+          try {
+            const res = await authFetchJSON('/api/proyectos', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ clienteId: realClienteId, nombre: proyecto.nombre, estado: proyecto.estado, fechaInicio: proyecto.fechaInicio })
+            });
+            proyectoIdMap.set(proyecto.id, res.success && res.data ? res.data.id : proyecto.id);
+          } catch { errores++; proyectoIdMap.set(proyecto.id, proyecto.id); }
+        }
+      }
+
+      // 3. Registros nuevos: sustituir IDs locales por IDs reales
+      const registrosExistentes = new Set(dbState.registros.map(r => r.id));
+      const registrosNuevos = newFullDbState.registros.filter(r => !registrosExistentes.has(r.id));
+
+      for (const item of registrosNuevos) {
+        const realClienteId = clienteIdMap.get(item.clienteId) || item.clienteId;
+        const realProyectoId = proyectoIdMap.get(item.proyectoId) || item.proyectoId;
+        try {
+          await authFetchJSON('/api/registros', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              clienteId: realClienteId,
+              proyectoId: realProyectoId,
+              fecha: item.fecha,
+              concepto: item.concepto,
+              descripcion: item.descripcion,
+              colaboradorId: item.colaboradorId,
+              hsInicio: item.hsInicio,
+              hsFin: item.hsFin,
+              hsTotal: item.hsTotal,
+              cantidad: item.cantidad,
+              precioUnitario: item.precioUnitario,
+              total: item.total
+            })
+          });
+          guardados++;
+        } catch { errores++; }
+      }
+
+      // 4. Recargar datos desde Supabase
+      await fetchDbState();
+
+      if (errores === 0) {
+        alert(`✅ Importación exitosa: ${guardados} registros guardados en Supabase.`);
+      } else {
+        alert(`⚠️ Importación parcial: ${guardados} guardados, ${errores} errores. Revisá los datos e intentá de nuevo.`);
+      }
       setActiveTab('dashboard');
+    } catch (err: any) {
+      alert('Error al importar: ' + (err.message || ''));
     }
   };
 
