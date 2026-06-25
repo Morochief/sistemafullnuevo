@@ -441,11 +441,13 @@ export default function App() {
       const clienteIdMap = new Map<string, string>();
       const proyectoIdMap = new Map<string, string>();
 
-      // 1. Clientes: los existentes mapean a sí mismos; los nuevos capturan el ID real del backend
-      const clientesExistentes = new Map(dbState.clientes.map(c => [c.id, c.id]));
+      // 1. Clientes: verificar por NOMBRE (no por ID local que cambia cada importación)
+      const clientesPorNombre = new Map(dbState.clientes.map(c => [c.nombre.toLowerCase().trim(), c.id]));
       for (const cliente of newFullDbState.clientes) {
-        if (clientesExistentes.has(cliente.id)) {
-          clienteIdMap.set(cliente.id, cliente.id);
+        const nombreNorm = cliente.nombre.toLowerCase().trim();
+        if (clientesPorNombre.has(nombreNorm)) {
+          // Ya existe en Supabase — mapear ID local → ID real existente
+          clienteIdMap.set(cliente.id, clientesPorNombre.get(nombreNorm)!);
         } else {
           try {
             const res = await authFetchJSON('/api/clientes', {
@@ -453,25 +455,34 @@ export default function App() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ nombre: cliente.nombre, codigo: cliente.codigo })
             });
-            clienteIdMap.set(cliente.id, res.success && res.data ? res.data.id : cliente.id);
+            if (res.success && res.data) {
+              clienteIdMap.set(cliente.id, res.data.id);
+              clientesPorNombre.set(nombreNorm, res.data.id); // evitar duplicar en misma importación
+            }
           } catch { errores++; clienteIdMap.set(cliente.id, cliente.id); }
         }
       }
 
-      // 2. Proyectos: usar el ID real del cliente al crear
-      const proyectosExistentes = new Map(dbState.proyectos.map(p => [p.id, p.id]));
+      // 2. Proyectos: verificar por NOMBRE + clienteId real (no por ID local)
+      const proyectosPorNombre = new Map(
+        dbState.proyectos.map(p => [`${p.clienteId}::${p.nombre.toLowerCase().trim()}`, p.id])
+      );
       for (const proyecto of newFullDbState.proyectos) {
-        if (proyectosExistentes.has(proyecto.id)) {
-          proyectoIdMap.set(proyecto.id, proyecto.id);
+        const realClienteId = clienteIdMap.get(proyecto.clienteId) || proyecto.clienteId;
+        const keyNombre = `${realClienteId}::${proyecto.nombre.toLowerCase().trim()}`;
+        if (proyectosPorNombre.has(keyNombre)) {
+          proyectoIdMap.set(proyecto.id, proyectosPorNombre.get(keyNombre)!);
         } else {
-          const realClienteId = clienteIdMap.get(proyecto.clienteId) || proyecto.clienteId;
           try {
             const res = await authFetchJSON('/api/proyectos', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ clienteId: realClienteId, nombre: proyecto.nombre, estado: proyecto.estado, fechaInicio: proyecto.fechaInicio })
             });
-            proyectoIdMap.set(proyecto.id, res.success && res.data ? res.data.id : proyecto.id);
+            if (res.success && res.data) {
+              proyectoIdMap.set(proyecto.id, res.data.id);
+              proyectosPorNombre.set(keyNombre, res.data.id);
+            }
           } catch { errores++; proyectoIdMap.set(proyecto.id, proyecto.id); }
         }
       }
