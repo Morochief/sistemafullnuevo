@@ -60,8 +60,8 @@ export const RegistroItemSchema = z.object({
     .max(500, 'Descripción muy larga')
     .transform(sanitizeHTML),
   colaboradorId: z.string().optional(),
-  hsInicio: z.string().optional(),
-  hsFin: z.string().optional(),
+  hsInicio: z.string().optional().transform(v => v ? v.substring(0, 5) : v),
+  hsFin: z.string().optional().transform(v => v ? v.substring(0, 5) : v),
   hsTotal: z.number().nonnegative('Horas totales no pueden ser negativas').optional(),
   cantidad: z.number().positive('Cantidad debe ser mayor a 0'),
   precioUnitario: z.number().positive('Precio unitario debe ser mayor a 0'),
