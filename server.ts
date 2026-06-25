@@ -1316,8 +1316,15 @@ app.post('/api/clear', requireAuth, requireAdmin, async (req, res) => {
   const clientIp = getClientIp(req);
   const userPayload = req.user!;
   try {
-    await writeDbSafe(initialData);
-    // SECURITY Fix #17: Audit database clear (high-impact admin action)
+    // Limpiar Supabase en orden correcto (respetar FK constraints)
+    await prisma.registro.deleteMany({});
+    await prisma.registroVehiculo.deleteMany({});
+    await prisma.timerActivo.deleteMany({});
+    await prisma.viajeActivo.deleteMany({});
+    await prisma.proyecto.deleteMany({});
+    await prisma.colaborador.deleteMany({});
+    await prisma.cliente.deleteMany({});
+
     auditLog({
       usuario: userPayload.usuario,
       accion: 'clear_database',
@@ -1327,7 +1334,7 @@ app.post('/api/clear', requireAuth, requireAdmin, async (req, res) => {
     });
     res.json({
       success: true,
-      message: 'Base de datos restaurada a valores muestra'
+      message: 'Base de datos limpiada completamente en Supabase'
     } as ApiResponse);
   } catch (error: any) {
     console.error('Error clearing database:', error);
