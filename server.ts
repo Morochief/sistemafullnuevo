@@ -2848,6 +2848,136 @@ app.delete('/api/colaboradores/:id', requireAuth, requireAdmin, async (req, res)
   }
 });
 
+// ═══════════════════════════════════════════════════════════════
+// ADMIN CLEANUP — Eliminar duplicados de importación Excel
+// TEMPORAL: Solo accesible para Admin, eliminar después de usarlo
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * POST /api/admin/cleanup-duplicates
+ * Encuentra clientes/proyectos duplicados por nombre y los consolida.
+ * Conserva el que tiene MÁS registros asociados.
+ * Reasigna registros huérfanos antes de eliminar los duplicados.
+ * 
+ * MODO SIMULACION (default): body sin dryRun o dryRun: true
+ * MODO REAL: body con dryRun: false
+ */
+app.post('/api/admin/cleanup-duplicates', requireAuth, requireAdmin, async (req, res) => {
+  const clientIp = getClientIp(req);
+  const userPayload = req.user!;
+  const dryRun = req.body?.dryRun !== false; // default true = simulación segura
+
+  try {
+    const report: any = {
+      dryRun,
+      clientesDuplicados: [],
+      registrosReasignados: 0,
+      eliminados: { clientes: 0, proyectos: 0 }
+    };
+
+    // 1. Cargar todos los clientes con conteo de registros
+    const todosClientes = await prisma.cliente.findMany({
+      include: {
+        _count: { select: { registros: true, registrosVehiculo: true, proyectos: true } }
+      }
+    });
+
+    // Agrupar por nombre normalizado
+    const clientesPorNombre = new Map<string, typeof todosClientes>();
+    for (const c of todosClientes) {
+      const key = c.nombre.toLowerCase().trim();
+      if (!clientesPorNombre.has(key)) clientesPorNombre.set(key, []);
+      clientesPorNombre.get(key)!.push(c);
+    }
+
+    for (const [_nombre, grupo] of clientesPorNombre) {
+      if (grupo.length <= 1) continue;
+
+      // El "ganador" es el que tiene más registros totales
+      const ganador = grupo.reduce((best, c) => {
+        const scoreB = best._count.registros + best._count.registrosVehiculo;
+        const scoreC = c._count.registros + c._count.registrosVehiculo;
+        return scoreC > scoreB ? c : best;
+      });
+
+      const perdedores = grupo.filter(c => c.id !== ganador.id);
+
+      report.clientesDuplicados.push({
+        nombre: ganador.nombre,
+        conservando: { id: ganador.id, registros: ganador._count.registros },
+        eliminando: perdedores.map(p => ({ id: p.id, registros: p._count.registros }))
+      });
+
+      if (!dryRun) {
+        for (const perdedor of perdedores) {
+          // a. Reasignar registros del perdedor al ganador
+          const r1 = await prisma.registro.updateMany({
+            where: { clienteId: perdedor.id },
+            data: { clienteId: ganador.id, clienteNombre: ganador.nombre }
+          });
+          report.registrosReasignados += r1.count;
+
+          await prisma.registroVehiculo.updateMany({
+            where: { clienteId: perdedor.id },
+            data: { clienteId: ganador.id, clienteNombre: ganador.nombre }
+          });
+
+          // b. Proyectos del perdedor
+          const proyectosPerdedor = await prisma.proyecto.findMany({ where: { clienteId: perdedor.id } });
+          const proyectosGanador = await prisma.proyecto.findMany({ where: { clienteId: ganador.id } });
+          const nombresGanador = new Set(proyectosGanador.map(p => p.nombre.toLowerCase().trim()));
+
+          for (const proj of proyectosPerdedor) {
+            const equiv = proyectosGanador.find(
+              p => p.nombre.toLowerCase().trim() === proj.nombre.toLowerCase().trim()
+            );
+            if (equiv) {
+              // Proyecto duplicado — reasignar sus registros al equivalente del ganador
+              await prisma.registro.updateMany({
+                where: { proyectoId: proj.id },
+                data: { proyectoId: equiv.id, proyectoNombre: equiv.nombre }
+              });
+              await prisma.registroVehiculo.updateMany({
+                where: { proyectoId: proj.id },
+                data: { proyectoId: equiv.id, proyectoNombre: equiv.nombre }
+              });
+              await prisma.proyecto.delete({ where: { id: proj.id } });
+              report.eliminados.proyectos++;
+            } else {
+              // Proyecto único — reasignarlo al cliente ganador
+              await prisma.proyecto.update({
+                where: { id: proj.id },
+                data: { clienteId: ganador.id }
+              });
+            }
+          }
+
+          // c. Eliminar cliente perdedor (ya sin dependencias)
+          await prisma.cliente.delete({ where: { id: perdedor.id } });
+          report.eliminados.clientes++;
+        }
+      }
+    }
+
+    auditLog({
+      usuario: userPayload.usuario,
+      accion: 'cleanup_duplicates',
+      recurso: '/api/admin/cleanup-duplicates',
+      resultado: 'success',
+      ip: clientIp,
+      detalle: `dryRun=${dryRun}, duplicados=${report.clientesDuplicados.length}`
+    });
+
+    res.json({ success: true, data: report });
+  } catch (error: any) {
+    logger.error('Error in cleanup-duplicates:', error);
+    res.status(500).json({
+      success: false,
+      error: { code: 'CLEANUP_ERROR', message: error.message }
+    } as ApiResponse);
+  }
+});
+
 // Servir archivos estáticos de uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
