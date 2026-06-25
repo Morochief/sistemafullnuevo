@@ -100,11 +100,11 @@ app.use(helmet({
   contentSecurityPolicy: isProduction ? {
     directives: {
       defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"], // For Tailwind CSS
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"], // For Tailwind CSS + Google Fonts
+      fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
       scriptSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: ["'self'", "https://generativelanguage.googleapis.com"],
-      fontSrc: ["'self'", "data:"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
       frameSrc: ["'none'"],
