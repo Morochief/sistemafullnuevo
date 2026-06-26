@@ -593,8 +593,26 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
   //  SHARED CONTEXT STATE
   // ══════════════════════════════════════════════════════
 
-  const [selectedClienteId, setSelectedClienteId] = useState('');
-  const [selectedProyectoId, setSelectedProyectoId] = useState('');
+  // Persist context in localStorage so it survives reconnects / server spin-up delays
+  const ctxPrefix = `afull_ctx_${currentUser?.usuario || 'guest'}`;
+
+  const [selectedClienteId, setSelectedClienteId] = useState(() => {
+    try { return localStorage.getItem(`${ctxPrefix}_clienteId`) || ''; } catch { return ''; }
+  });
+  const [selectedProyectoId, setSelectedProyectoId] = useState(() => {
+    try { return localStorage.getItem(`${ctxPrefix}_proyectoId`) || ''; } catch { return ''; }
+  });
+
+  // Keep localStorage in sync
+  useEffect(() => {
+    try {
+      if (selectedClienteId) localStorage.setItem(`${ctxPrefix}_clienteId`, selectedClienteId);
+      else localStorage.removeItem(`${ctxPrefix}_clienteId`);
+      if (selectedProyectoId) localStorage.setItem(`${ctxPrefix}_proyectoId`, selectedProyectoId);
+      else localStorage.removeItem(`${ctxPrefix}_proyectoId`);
+    } catch {}
+  }, [selectedClienteId, selectedProyectoId, ctxPrefix]);
+
   const [fecha, setFecha] = useState(new Date().toISOString().substring(0, 10));
 
   const proyectosFiltrados = data.proyectos.filter(
@@ -602,6 +620,17 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
   );
 
   const contextComplete = !!(selectedClienteId && selectedProyectoId);
+
+  // Validate persisted IDs still exist in DB (they may have been deleted)
+  useEffect(() => {
+    if (data.clientes.length === 0) return; // data not loaded yet
+    if (selectedClienteId && !data.clientes.find(c => c.id === selectedClienteId)) {
+      setSelectedClienteId('');
+      setSelectedProyectoId('');
+    } else if (selectedProyectoId && !data.proyectos.find(p => p.id === selectedProyectoId)) {
+      setSelectedProyectoId('');
+    }
+  }, [data.clientes, data.proyectos]);
 
   // ══════════════════════════════════════════════════════
   //  TIMER & MANO DE OBRA
