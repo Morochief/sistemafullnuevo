@@ -47,7 +47,7 @@ import VehiculoTab from './VehiculoTab.tsx';
 interface RegistroOperativoProps {
   data: DatabaseState;
   onAddRegistro: (registro: any) => Promise<boolean>;
-  currentUser: { nombre: string; rol: string; usuario: string } | null;
+  currentUser: { nombre: string; rol: string; usuario: string; colaboradorId?: string } | null;
 }
 
 interface InsumoLine {
@@ -641,11 +641,20 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
   useEffect(() => {
     if (currentUser && data.colaboradores.length > 0) {
       if (currentUser.rol !== 'Admin') {
+        // Primero intentar match exacto por colaboradorId (más confiable)
+        if (currentUser.colaboradorId) {
+          const col = data.colaboradores.find(c => c.id === currentUser.colaboradorId);
+          if (col) {
+            setSelectedColaboradorId(col.id);
+            setMoPrecioUnitario(String(col.tarifaSugerida));
+            return;
+          }
+        }
+        // Fallback: match por nombre (por si el colaboradorId no está disponible aún)
         const colaborador = data.colaboradores.find(
           col => col.nombre.toLowerCase().includes(currentUser.nombre.toLowerCase()) ||
                  currentUser.nombre.toLowerCase().includes(col.nombre.toLowerCase())
         );
-        
         if (colaborador) {
           setSelectedColaboradorId(colaborador.id);
           setMoPrecioUnitario(String(colaborador.tarifaSugerida));
@@ -655,7 +664,6 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
           col => col.nombre.toLowerCase().includes(currentUser.nombre.toLowerCase()) ||
                  currentUser.nombre.toLowerCase().includes(col.nombre.toLowerCase())
         );
-        
         if (colaborador) {
           setSelectedColaboradorId(colaborador.id);
           setMoPrecioUnitario(String(colaborador.tarifaSugerida));

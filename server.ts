@@ -473,7 +473,8 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
         user: {
           nombre: user.nombre,
           rol: user.rol,
-          usuario: user.usuario
+          usuario: user.usuario,
+          colaboradorId: user.colaboradorId || undefined
         }
         // SECURITY: Token NOT returned in response body anymore
       }

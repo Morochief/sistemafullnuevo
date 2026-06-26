@@ -38,6 +38,7 @@ interface SessionUser {
   nombre: string;
   rol: string;
   usuario: string;
+  colaboradorId?: string;
 }
 
 const MARKUP_RATE_KEY = 'afull_markup_rate';
