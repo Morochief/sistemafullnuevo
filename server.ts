@@ -131,6 +131,12 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
+// Trust Render's proxy/load balancer so express-rate-limit and IP detection work correctly
+// Render adds X-Forwarded-For header — without this, rate-limit throws ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 // Cookie parser for JWT cookies and CSRF (Phase 2 Fix #3 & #5)
 app.use(cookieParser());
 
