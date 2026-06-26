@@ -870,7 +870,7 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
         className={`glass-panel rounded-2xl p-6 border-2 transition-all ${
           contextComplete
             ? 'border-emerald-500/30 shadow-lg shadow-emerald-500/10'
-            : 'border-amber-500/30'
+            : 'border-white/10'
         }`}
       >
         <div className="flex items-center justify-between mb-4">
@@ -1241,10 +1241,10 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
                     </div>
                   ) : (
                     <div className="relative">
-                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-500 pointer-events-none z-10" />
-                      <div className="w-full rounded-xl pl-10 pr-4 py-3 text-sm text-white bg-slate-800/70 border-2 border-amber-500/30 flex items-center gap-2">
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none z-10" />
+                      <div className="w-full rounded-xl pl-10 pr-4 py-3 text-sm text-white bg-slate-800/70 border-2 border-white/10 flex items-center gap-2">
                         <span className="flex-1">
-                          {currentUserColaborador ? currentUserColaborador.nombre : currentUser?.nombre || 'Usuario actual'}
+                          {currentUser?.nombre || 'Usuario actual'}
                         </span>
                         <span className="text-xs text-slate-400 font-mono">
                           {currentUserColaborador && `${formatGuaranies(currentUserColaborador.tarifaSugerida)}/min`}
