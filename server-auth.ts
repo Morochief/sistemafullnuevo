@@ -48,20 +48,28 @@ const DEMO_USERS: User[] = [
     // Admin: no colaboradorId (can register hours for anyone)
   },
   {
-    usuario: 'kevin',
-    nombre: 'Kevin Delgado',
+    usuario: 'ricardo',
+    nombre: 'Ricardo',
     rol: 'Operario',
-    // Password: kevin123
-    passwordHash: '$2b$10$kQGsr805xyCd5mJjLgn0ueBE4RMRcwTUmm7rio8h9NG7/eNhdCBue',
-    colaboradorId: 'col_2' // TODO: No existe "Kevin" en la DB actual — reemplazar con el ID real cuando se cree el colaborador Kevin en Supabase
+    // Password: ricardo123
+    passwordHash: '$2b$10$6ya9KoSOkWcSJvMaRMqV9e1WVkp.ta9jjbJv60NWzHSktrs98ScE.',
+    colaboradorId: 'col_mdtahyyln' // Richard entrega
   },
   {
     usuario: 'rodrigo',
-    nombre: 'Rodrigo Gómez',
+    nombre: 'Rodrigo',
     rol: 'Técnico',
     // Password: rodrigo123
-    passwordHash: '$2b$10$tt28Zv3lO9cCEAGFuVRvgO0u75WeuDkKjcijwA4xaizKTEF.q8cbu',
-    colaboradorId: 'col_kdsnf4jzk' // Rodrigo retiro (único Rodrigo en DB — verificado con Prisma)
+    passwordHash: '$2b$10$tcWnyrzrzIrwRDCdv08Td.8em1BTvH.GGkPUpfkHzsTzVvrpqLtna',
+    colaboradorId: 'col_kdsnf4jzk' // Rodrigo retiro
+  },
+  {
+    usuario: 'eduardo',
+    nombre: 'Eduardo',
+    rol: 'Operario',
+    // Password: eduardo123
+    passwordHash: '$2b$10$DMLZnmntJJRo5edHsV5Hru3xJKMDdAu5rHC/GHxYL4ogG91zEhrLm',
+    colaboradorId: 'col_y7j6hif9t' // Edu montaje
   }
 ];
 
