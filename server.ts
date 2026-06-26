@@ -384,7 +384,7 @@ app.get('/api/csrf-token', (req, res) => {
     res.cookie('sessionId', sessionId, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'lax', // lax en ambos entornos — protege CSRF pero funciona desde links externos en mobile (WhatsApp, email, Safari ITP)
       maxAge: 3600000 // 1 hour
     });
   }

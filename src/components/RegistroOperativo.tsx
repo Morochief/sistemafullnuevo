@@ -1082,6 +1082,14 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
                   </div>
                 )}
 
+                {/* Aviso mobile: colaborador no asignado aún (race condition en red lenta) */}
+                {!timerRunning && !timerEnd && contextComplete && !selectedColaboradorId && !canChangeColaborador && (
+                  <div className="flex items-center gap-2 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2 mb-1">
+                    <span className="text-amber-400">⏳</span>
+                    <span>Cargando tu colaborador… si tarda, recargá la página.</span>
+                  </div>
+                )}
+
                 {/* Botones del Timer */}
                 <div className="flex gap-3">
                   {!timerRunning && !timerEnd && (
@@ -1090,7 +1098,7 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                       onClick={onStartTimer}
-                      disabled={!contextComplete || !selectedColaboradorId}
+                      disabled={!contextComplete || (!selectedColaboradorId && !canChangeColaborador)}
                       className="flex items-center gap-2 px-8 py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-sm shadow-lg shadow-blue-500/25 border border-white/10 transition-all"
                     >
                       <Play className="w-5 h-5 fill-white" />

@@ -41,12 +41,14 @@ async function fetchCSRFToken(): Promise<string> {
  * Fetch with automatic JWT authentication from httpOnly cookie
  * SECURITY Phase 2 Fix #5: No Authorization header needed - JWT in cookie
  * SECURITY Phase 2 Fix #3: Adds CSRF token for state-changing requests
+ * Mobile Fix: Retry automático si el token CSRF expiró (OS mató el tab y lo reactivó)
  */
 export async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
   const headers = new Headers(options.headers);
-  
+  const isMutating = options.method && !['GET', 'HEAD', 'OPTIONS'].includes(options.method.toUpperCase());
+
   // SECURITY Phase 2 Fix #3: Add CSRF token for state-changing requests
-  if (options.method && !['GET', 'HEAD', 'OPTIONS'].includes(options.method.toUpperCase())) {
+  if (isMutating) {
     try {
       const token = await fetchCSRFToken();
       headers.set('X-CSRF-Token', token);
@@ -55,14 +57,41 @@ export async function authFetch(url: string, options: RequestInit = {}): Promise
       throw new Error('Failed to get CSRF token');
     }
   }
-  
+
   // SECURITY Phase 2 Fix #5: JWT automatically sent via httpOnly cookie
   const response = await fetch(url, {
     ...options,
     headers,
     credentials: 'include' // IMPORTANT: Include cookies in request
   });
-  
+
+  // Mobile Fix: Si el servidor rechaza el CSRF, limpiar cache y reintentar UNA sola vez.
+  // Ocurre en mobile cuando el OS mata el tab y el servidor reinició (perdió el Map en memoria).
+  if (response.status === 403 && isMutating) {
+    try {
+      const errorBody = await response.clone().json();
+      const errorCode = errorBody?.error?.code;
+      if (
+        errorCode === 'CSRF_TOKEN_INVALID' ||
+        errorCode === 'CSRF_TOKEN_MISSING' ||
+        errorCode === 'CSRF_TOKEN_EXPIRED'
+      ) {
+        console.warn('[authFetch] CSRF token invalid/expired, refreshing and retrying once...');
+        csrfToken = null; // invalidar cache
+        const newToken = await fetchCSRFToken(); // obtener token fresco del servidor
+        headers.set('X-CSRF-Token', newToken);
+        // Reintentar la request original con el token nuevo (sin más retries)
+        return fetch(url, {
+          ...options,
+          headers,
+          credentials: 'include'
+        });
+      }
+    } catch {
+      // Si falla el parse del error body, devolver la response original sin reintentar
+    }
+  }
+
   return response;
 }
 
