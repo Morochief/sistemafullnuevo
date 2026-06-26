@@ -658,6 +658,13 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
         if (colaborador) {
           setSelectedColaboradorId(colaborador.id);
           setMoPrecioUnitario(String(colaborador.tarifaSugerida));
+        } else {
+          // Ningún match por ID ni por nombre — el botón "Iniciar Tarea" quedará bloqueado
+          console.warn(
+            `[RegistroOperativo] No se encontró colaborador para el usuario "${currentUser.usuario}" ` +
+            `(nombre: "${currentUser.nombre}", colaboradorId: "${currentUser.colaboradorId}"). ` +
+            `IDs disponibles: ${data.colaboradores.map(c => `${c.id}="${c.nombre}"`).join(', ')}`
+          );
         }
       } else if (!selectedColaboradorId) {
         const colaborador = data.colaboradores.find(

@@ -454,7 +454,7 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
     res.cookie('jwt', token, {
       httpOnly: true, // Cannot be accessed by JavaScript
       secure: process.env.NODE_ENV === 'production', // Only over HTTPS in production
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax', // Lax in dev for localhost
+      sameSite: 'lax', // lax en todos los entornos — protege CSRF pero funciona desde links externos en mobile (WhatsApp, email, Safari ITP)
       maxAge: 12 * 60 * 60 * 1000 // 12 hours (matches JWT_EXPIRES_IN default)
     });
     

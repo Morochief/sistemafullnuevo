@@ -53,7 +53,7 @@ const DEMO_USERS: User[] = [
     rol: 'Operario',
     // Password: kevin123
     passwordHash: '$2b$10$kQGsr805xyCd5mJjLgn0ueBE4RMRcwTUmm7rio8h9NG7/eNhdCBue',
-    colaboradorId: 'col_2' // SECURITY Fix #16: Kevin Delgado
+    colaboradorId: 'col_2' // TODO: No existe "Kevin" en la DB actual — reemplazar con el ID real cuando se cree el colaborador Kevin en Supabase
   },
   {
     usuario: 'rodrigo',
@@ -61,7 +61,7 @@ const DEMO_USERS: User[] = [
     rol: 'Técnico',
     // Password: rodrigo123
     passwordHash: '$2b$10$tt28Zv3lO9cCEAGFuVRvgO0u75WeuDkKjcijwA4xaizKTEF.q8cbu',
-    colaboradorId: 'col_1' // SECURITY Fix #16: Rodrigo Gómez
+    colaboradorId: 'col_kdsnf4jzk' // Rodrigo retiro (único Rodrigo en DB — verificado con Prisma)
   }
 ];
 
