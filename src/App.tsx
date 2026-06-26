@@ -84,23 +84,39 @@ export default function App() {
   const checkAuthStatus = async () => {
     setLoading(true);
     try {
+      // First restore user session from JWT cookie
+      const meResponse = await fetch('/api/auth/me', {
+        credentials: 'include'
+      });
+
+      if (!meResponse.ok) {
+        // No valid session cookie — show login
+        setSession(null);
+        setLoading(false);
+        return;
+      }
+
+      const meResult = await meResponse.json();
+      if (!meResult.success || !meResult.data?.user) {
+        setSession(null);
+        setLoading(false);
+        return;
+      }
+
+      // Session is valid — restore it
+      setSession(meResult.data.user);
+
+      // Then load app data
       const response = await fetch('/api/data', {
-        credentials: 'include' // Include httpOnly cookie
+        credentials: 'include'
       });
       
       if (response.ok) {
         const result = await response.json();
         if (result.success) {
-          // User is authenticated via cookie, but we don't have user info yet
-          // We'll get it after first successful data fetch
           setDbState(result.data);
-          // Set minimal session to indicate user is logged in
-          // Full user info will be populated on login
-        } else {
-          setSession(null);
         }
-      } else {
-        setSession(null);
+        // If /api/data fails, session is still valid — user stays logged in
       }
     } catch (error) {
       setSession(null);

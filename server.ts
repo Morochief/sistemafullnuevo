@@ -504,6 +504,26 @@ app.post('/api/auth/logout', (req, res) => {
   });
 });
 
+/**
+ * GET /api/auth/me
+ * Returns current user info from JWT cookie — used on page reload to restore session
+ * without re-entering credentials.
+ */
+app.get('/api/auth/me', requireAuth, (req, res) => {
+  const user = (req as any).user as JWTPayload;
+  return res.json({
+    success: true,
+    data: {
+      user: {
+        nombre: user.nombre,
+        rol: user.rol,
+        usuario: user.usuario,
+        colaboradorId: user.colaboradorId || undefined
+      }
+    }
+  });
+});
+
 // Helper to convert sheet date to YYYY-MM-DD
 function parseExcelDate(excelDate: any): string {
   if (!excelDate) return new Date().toISOString().substring(0, 10);
