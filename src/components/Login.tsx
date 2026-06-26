@@ -8,7 +8,7 @@ import { motion } from 'motion/react';
 import { HardHat, Lock, User, Eye, EyeOff, ShieldCheck, AlertCircle } from 'lucide-react';
 
 interface LoginProps {
-  onLoginSuccess: (user: { nombre: string; rol: string; usuario: string }) => void;
+  onLoginSuccess: (user: { nombre: string; rol: string; usuario: string; colaboradorId?: string }) => void;
 }
 
 export default function Login({ onLoginSuccess }: LoginProps) {
@@ -44,7 +44,8 @@ export default function Login({ onLoginSuccess }: LoginProps) {
         onLoginSuccess({
           nombre: user.nombre,
           rol: user.rol,
-          usuario: user.usuario
+          usuario: user.usuario,
+          colaboradorId: user.colaboradorId || undefined
         });
       } else {
         setError(result.error?.message || 'Usuario o contraseña incorrectos. Verificá los datos e intentá nuevamente.');
@@ -123,7 +124,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
                   type="text"
                   value={usuario}
                   onChange={e => setUsuario(e.target.value)}
-                  placeholder="ej: admin, kevin, rodrigo"
+                  placeholder="ej: admin, rodrigo, ricardo"
                   className="glass-input w-full rounded-xl pl-9 pr-4 py-3 text-sm font-sans placeholder:text-slate-600"
                   required
                   autoComplete="username"
