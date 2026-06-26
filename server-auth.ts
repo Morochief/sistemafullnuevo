@@ -53,7 +53,7 @@ const DEMO_USERS: User[] = [
     rol: 'Operario',
     // Password: ricardo123
     passwordHash: '$2b$10$6ya9KoSOkWcSJvMaRMqV9e1WVkp.ta9jjbJv60NWzHSktrs98ScE.',
-    colaboradorId: 'col_mdtahyyln' // Richard entrega
+    colaboradorId: 'col_mdtahyyln' // DB: "Richard entrega"
   },
   {
     usuario: 'rodrigo',
@@ -61,15 +61,15 @@ const DEMO_USERS: User[] = [
     rol: 'Técnico',
     // Password: rodrigo123
     passwordHash: '$2b$10$tcWnyrzrzIrwRDCdv08Td.8em1BTvH.GGkPUpfkHzsTzVvrpqLtna',
-    colaboradorId: 'col_kdsnf4jzk' // Rodrigo retiro
+    colaboradorId: 'col_kdsnf4jzk' // DB: "Rodrigo retiro"
   },
   {
     usuario: 'eduardo',
-    nombre: 'Eduardo',
+    nombre: 'Edu',
     rol: 'Operario',
     // Password: eduardo123
     passwordHash: '$2b$10$DMLZnmntJJRo5edHsV5Hru3xJKMDdAu5rHC/GHxYL4ogG91zEhrLm',
-    colaboradorId: 'col_y7j6hif9t' // Edu montaje
+    colaboradorId: 'col_y7j6hif9t' // DB: "Edu montaje"
   }
 ];
 
