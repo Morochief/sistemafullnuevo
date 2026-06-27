@@ -115,7 +115,12 @@ function useVehiculoCRUD(onRefresh: () => Promise<void>) {
       await authFetchJSON(`/api/vehiculo/registro/${editingId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          ...formData,
+          // Only send foto fields if they are new base64 data — skip existing URLs
+          fotoOdometroInicio: formData.fotoOdometroInicio?.startsWith('data:') ? formData.fotoOdometroInicio : undefined,
+          fotoOdometroFin: formData.fotoOdometroFin?.startsWith('data:') ? formData.fotoOdometroFin : undefined,
+        })
       });
 
       console.log('PATCH successful');

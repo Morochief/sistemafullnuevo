@@ -2749,16 +2749,38 @@ app.patch('/api/vehiculo/registro/:id', requireAuth, requireAdmin, async (req, r
       total = patchData.precioLitro * combustibleLitros;
     }
 
-    // Handle photo updates — upload to Supabase Storage if new base64 photos provided
+    // Handle photo updates — only upload photos that have new base64 data
+    // IMPORTANT: never pass an existing Supabase URL as input to guardarFotosVehiculo
+    // — that function expects base64, not URLs, and passing a URL corrupts the stored file.
     let fotoInicio: string | undefined;
     let fotoFin: string | undefined;
+
+    const uploadSingleFoto = async (base64: string, nombre: string): Promise<string> => {
+      const supabaseUrl = process.env.SUPABASE_URL;
+      const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
+      if (supabaseUrl && supabaseServiceKey) {
+        const { createClient } = await import('@supabase/supabase-js');
+        const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+        const raw = base64.replace(/^data:image\/\w+;base64,/, '');
+        const buffer = Buffer.from(raw, 'base64');
+        const storagePath = `vehiculos/${id}/${nombre}.jpg`;
+        const { error } = await supabaseAdmin.storage.from('vehiculos-fotos').upload(storagePath, buffer, { contentType: 'image/jpeg', upsert: true });
+        if (error) throw new Error(`Storage upload failed: ${error.message}`);
+        const { data } = supabaseAdmin.storage.from('vehiculos-fotos').getPublicUrl(storagePath);
+        return data.publicUrl;
+      }
+      // filesystem fallback for dev
+      const uploadsDir = path.join(__dirname, 'uploads', 'vehiculos', id);
+      await fs.promises.mkdir(uploadsDir, { recursive: true });
+      await fs.promises.writeFile(path.join(uploadsDir, `${nombre}.jpg`), base64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+      return `/uploads/vehiculos/${id}/${nombre}.jpg`;
+    };
+
     if (patchData.fotoOdometroInicio?.startsWith('data:')) {
-      const fotos = await guardarFotosVehiculo(id, patchData.fotoOdometroInicio, existing.fotoOdometroFin ?? '');
-      fotoInicio = fotos.inicio;
+      fotoInicio = await uploadSingleFoto(patchData.fotoOdometroInicio, 'odometro_inicio');
     }
     if (patchData.fotoOdometroFin?.startsWith('data:')) {
-      const fotos = await guardarFotosVehiculo(id, existing.fotoOdometroInicio ?? '', patchData.fotoOdometroFin);
-      fotoFin = fotos.fin;
+      fotoFin = await uploadSingleFoto(patchData.fotoOdometroFin, 'odometro_fin');
     }
 
     const updated = await prisma.registroVehiculo.update({
