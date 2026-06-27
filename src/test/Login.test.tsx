@@ -15,7 +15,7 @@ describe('Login Component', () => {
     render(<Login onLoginSuccess={mockOnLoginSuccess} />);
     
     expect(screen.getByText(/Iniciar Sesión/i)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/ej: admin, kevin, rodrigo/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/ej: admin, rodrigo, ricardo/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/••••••••/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /ingresar/i })).toBeInTheDocument();
   });
@@ -27,7 +27,7 @@ describe('Login Component', () => {
     const submitButton = screen.getByRole('button', { name: /ingresar/i });
     await user.click(submitButton);
     
-    const usuarioInput = screen.getByPlaceholderText(/ej: admin, kevin, rodrigo/i) as HTMLInputElement;
+    const usuarioInput = screen.getByPlaceholderText(/ej: admin, rodrigo, ricardo/i) as HTMLInputElement;
     expect(usuarioInput.validity.valueMissing).toBe(true);
   });
 
@@ -49,7 +49,7 @@ describe('Login Component', () => {
     render(<Login onLoginSuccess={mockOnLoginSuccess} />);
     const user = userEvent.setup();
     
-    await user.type(screen.getByPlaceholderText(/ej: admin, kevin, rodrigo/i), 'admin');
+    await user.type(screen.getByPlaceholderText(/ej: admin, rodrigo, ricardo/i), 'admin');
     await user.type(screen.getByPlaceholderText(/••••••••/i), 'admin123');
     await user.click(screen.getByRole('button', { name: /ingresar/i }));
     
@@ -58,3 +58,4 @@ describe('Login Component', () => {
     });
   });
 });
+
