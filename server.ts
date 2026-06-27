@@ -2142,37 +2142,57 @@ function calcularDistanciaHaversine(
 }
 
 /**
- * Save vehicle photos to filesystem
+ * Save vehicle photos to Supabase Storage (or local filesystem as fallback)
  */
 async function guardarFotosVehiculo(
   registroId: string,
   fotoBase64Inicio: string,
   fotoBase64Fin: string
 ): Promise<{ inicio: string; fin: string }> {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
+
+  // ── Supabase Storage path (production) ──────────────────────────────────
+  if (supabaseUrl && supabaseServiceKey) {
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+    const uploadFoto = async (dataUrl: string, nombre: string): Promise<string> => {
+      const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '');
+      const buffer = Buffer.from(base64, 'base64');
+      const storagePath = `vehiculos/${registroId}/${nombre}.jpg`;
+
+      const { error } = await supabaseAdmin.storage
+        .from('vehiculos-fotos')
+        .upload(storagePath, buffer, { contentType: 'image/jpeg', upsert: true });
+
+      if (error) throw new Error(`Supabase Storage upload failed: ${error.message}`);
+
+      const { data } = supabaseAdmin.storage
+        .from('vehiculos-fotos')
+        .getPublicUrl(storagePath);
+
+      return data.publicUrl;
+    };
+
+    return {
+      inicio: await uploadFoto(fotoBase64Inicio, 'odometro_inicio'),
+      fin: await uploadFoto(fotoBase64Fin, 'odometro_fin'),
+    };
+  }
+
+  // ── Local filesystem fallback (development) ─────────────────────────────
   const uploadsDir = path.join(__dirname, 'uploads', 'vehiculos', registroId);
-  
-  // Crear directorio si no existe
   await fs.promises.mkdir(uploadsDir, { recursive: true });
-  
-  // Extraer el contenido base64 (remover "data:image/jpeg;base64,")
-  const extraerBase64 = (dataUrl: string) => {
-    return dataUrl.replace(/^data:image\/\w+;base64,/, '');
-  };
-  
-  const base64Inicio = extraerBase64(fotoBase64Inicio);
-  const base64Fin = extraerBase64(fotoBase64Fin);
-  
-  // Guardar archivos
-  const rutaInicio = path.join(uploadsDir, 'odometro_inicio.jpg');
-  const rutaFin = path.join(uploadsDir, 'odometro_fin.jpg');
-  
-  await fs.promises.writeFile(rutaInicio, base64Inicio, 'base64');
-  await fs.promises.writeFile(rutaFin, base64Fin, 'base64');
-  
-  // Retornar rutas relativas para la BD
+
+  const extraerBase64 = (dataUrl: string) => dataUrl.replace(/^data:image\/\w+;base64,/, '');
+
+  await fs.promises.writeFile(path.join(uploadsDir, 'odometro_inicio.jpg'), extraerBase64(fotoBase64Inicio), 'base64');
+  await fs.promises.writeFile(path.join(uploadsDir, 'odometro_fin.jpg'), extraerBase64(fotoBase64Fin), 'base64');
+
   return {
     inicio: `/uploads/vehiculos/${registroId}/odometro_inicio.jpg`,
-    fin: `/uploads/vehiculos/${registroId}/odometro_fin.jpg`
+    fin: `/uploads/vehiculos/${registroId}/odometro_fin.jpg`,
   };
 }
 

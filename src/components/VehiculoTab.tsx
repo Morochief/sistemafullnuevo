@@ -48,6 +48,27 @@ function formatGuaranies(value: number): string {
   return 'Gs. ' + Math.round(value).toLocaleString('es-PY');
 }
 
+// ─── Image compression helper ───────────────────────────────────────────────
+// Resize to max 1200px wide and compress to JPEG 75% — readable for odometer
+// digits but ~70-80% smaller than a typical phone photo.
+function compressImage(base64: string, maxWidth = 1200, quality = 0.75): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = img.width > maxWidth ? maxWidth / img.width : 1;
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { resolve(base64); return; } // fallback: return original if canvas unavailable
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(base64); // fallback on load error
+    img.src = base64;
+  });
+}
+
 // Hook para captura de foto con OCR
 function useCameraCapture() {
   const [photo, setPhoto] = useState<string | null>(null);
@@ -57,7 +78,9 @@ function useCameraCapture() {
   const capturePhoto = useCallback(async (file: File) => {
     const reader = new FileReader();
     reader.onload = async (e) => {
-      const base64 = e.target?.result as string;
+      const raw = e.target?.result as string;
+      // Compress before storing/sending — keeps odometer digits readable at ~70% smaller size
+      const base64 = await compressImage(raw);
       setPhoto(base64);
       
       setIsProcessing(true);
