@@ -891,11 +891,17 @@ function ViajeCard({ registro, onVerFoto, onEdit, onDelete }: ViajeCardProps) {
                     <MapPin className="w-4 h-4" />
                     <span className="text-xs font-bold uppercase font-mono">Ubicación Inicio</span>
                   </div>
-                  <p className="text-xs text-slate-300 font-mono">
-                    {registro.ubicacionInicio.lat.toFixed(6)}, {registro.ubicacionInicio.lng.toFixed(6)}
-                  </p>
-                  {registro.ubicacionInicio.nombre && (
-                    <p className="text-[10px] text-slate-400 mt-1">{registro.ubicacionInicio.nombre}</p>
+                  {registro.ubicacionInicio?.lat != null ? (
+                    <>
+                      <p className="text-xs text-slate-300 font-mono">
+                        {registro.ubicacionInicio.lat.toFixed(6)}, {registro.ubicacionInicio.lng.toFixed(6)}
+                      </p>
+                      {registro.ubicacionInicio.nombre && (
+                        <p className="text-[10px] text-slate-400 mt-1">{registro.ubicacionInicio.nombre}</p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-xs text-slate-500 italic">Sin coordenadas GPS</p>
                   )}
                   <p className="text-[10px] text-slate-500 mt-2">{registro.horaInicio}</p>
                 </div>
@@ -905,11 +911,17 @@ function ViajeCard({ registro, onVerFoto, onEdit, onDelete }: ViajeCardProps) {
                     <MapPin className="w-4 h-4" />
                     <span className="text-xs font-bold uppercase font-mono">Ubicación Fin</span>
                   </div>
-                  <p className="text-xs text-slate-300 font-mono">
-                    {registro.ubicacionFin.lat.toFixed(6)}, {registro.ubicacionFin.lng.toFixed(6)}
-                  </p>
-                  {registro.ubicacionFin.nombre && (
-                    <p className="text-[10px] text-slate-400 mt-1">{registro.ubicacionFin.nombre}</p>
+                  {registro.ubicacionFin?.lat != null ? (
+                    <>
+                      <p className="text-xs text-slate-300 font-mono">
+                        {registro.ubicacionFin.lat.toFixed(6)}, {registro.ubicacionFin.lng.toFixed(6)}
+                      </p>
+                      {registro.ubicacionFin.nombre && (
+                        <p className="text-[10px] text-slate-400 mt-1">{registro.ubicacionFin.nombre}</p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-xs text-slate-500 italic">Sin coordenadas GPS</p>
                   )}
                   <p className="text-[10px] text-slate-500 mt-2">{registro.horaFin}</p>
                 </div>
@@ -922,7 +934,7 @@ function ViajeCard({ registro, onVerFoto, onEdit, onDelete }: ViajeCardProps) {
                     <MapPin className="w-3.5 h-3.5" />
                     <span className="text-[10px] uppercase font-mono">GPS</span>
                   </div>
-                  <p className="text-lg font-bold text-white">{registro.distanciaGPS.toFixed(1)} km</p>
+                  <p className="text-lg font-bold text-white">{registro.distanciaGPS != null ? registro.distanciaGPS.toFixed(1) : '-'} km</p>
                 </div>
 
                 <div className="p-3 bg-white/5 rounded-lg">
@@ -930,7 +942,7 @@ function ViajeCard({ registro, onVerFoto, onEdit, onDelete }: ViajeCardProps) {
                     <Gauge className="w-3.5 h-3.5" />
                     <span className="text-[10px] uppercase font-mono">Odómetro</span>
                   </div>
-                  <p className="text-lg font-bold text-white">{registro.distanciaOdometro.toFixed(1)} km</p>
+                  <p className="text-lg font-bold text-white">{registro.distanciaOdometro != null ? registro.distanciaOdometro.toFixed(1) : '-'} km</p>
                 </div>
 
                 <div className="p-3 bg-white/5 rounded-lg">
