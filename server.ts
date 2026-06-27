@@ -2265,6 +2265,35 @@ app.post('/api/viaje/start', requireAuth, async (req, res) => {
 });
 
 /**
+ * POST /api/viaje/cancel
+ * Cancel (discard) the active vehicle trip without saving a registro
+ */
+app.post('/api/viaje/cancel', requireAuth, async (req, res) => {
+  const { usuario } = req.body;
+  if (!usuario) {
+    return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Usuario requerido' } } as ApiResponse);
+  }
+  try {
+    const viajeActivo = await prisma.viajeActivo.findFirst({ where: { usuario, activo: true } });
+    if (!viajeActivo) {
+      return res.json({ success: true, data: { message: 'No había viaje activo' } } as ApiResponse);
+    }
+    await prisma.viajeActivo.update({ where: { id: viajeActivo.id }, data: { activo: false } });
+    auditLog({
+      usuario: req.user?.usuario || usuario,
+      accion: 'viaje_cancel',
+      recurso: `/api/viaje/${viajeActivo.id}`,
+      detalle: 'Viaje cancelado sin guardar',
+      resultado: 'success',
+      ip: getClientIp(req),
+    });
+    return res.json({ success: true, data: { message: 'Viaje cancelado' } } as ApiResponse);
+  } catch (error: any) {
+    return res.status(500).json({ success: false, error: { code: 'VIAJE_CANCEL_ERROR', message: error.message } } as ApiResponse);
+  }
+});
+
+/**
  * POST /api/viaje/stop
  * Stop active vehicle trip
  */
