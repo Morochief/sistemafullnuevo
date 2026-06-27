@@ -101,7 +101,7 @@ model RegistroVehiculo {
   total                Decimal   @db.Decimal(15, 2)
   descripcion          String?
   alertaDiscrepancia   Boolean   @default(false) @map("alerta_discrepancia")
-  discrepancia         Decimal?  @db.Decimal(5, 2)
+  discrepancia         Decimal?  @db.Decimal(8, 2)
   consumoPorKm         Decimal?  @map("consumo_por_km") @db.Decimal(10, 4)
   horaInicio           String?   @map("hora_inicio") @db.VarChar(8)
   horaFin              String?   @map("hora_fin") @db.VarChar(8)

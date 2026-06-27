@@ -2331,6 +2331,8 @@ app.post('/api/viaje/stop', requireAuth, async (req, res) => {
       ? (diferencia / distanciaGPS) * 100
       : 0;
     const alertaDiscrepancia = discrepanciaPorcentaje > 20;
+    // Cap discrepancia at 999.9 to avoid Decimal(5,2) overflow when GPS gives garbage values
+    const discrepanciaGuardada = Math.min(Math.round(discrepanciaPorcentaje * 10) / 10, 999.9);
     const consumoPorKm = combustibleLitros && distanciaOdometro > 0
       ? Math.round((combustibleLitros / distanciaOdometro) * 100) / 100
       : undefined;
@@ -2365,7 +2367,7 @@ app.post('/api/viaje/stop', requireAuth, async (req, res) => {
         total: new Decimal(combustibleCosto),
         descripcion: descripcion || viajeActivo.descripcion,
         alertaDiscrepancia,
-        discrepancia: new Decimal(Math.round(discrepanciaPorcentaje * 10) / 10),
+        discrepancia: new Decimal(discrepanciaGuardada),
         ubicacionInicio: viajeActivo.ubicacionInicio as any,
         ubicacionFin: ubicacionFin,
         fotoOdometroInicio: fotosGuardadas.inicio,
