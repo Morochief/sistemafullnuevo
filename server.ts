@@ -2152,6 +2152,8 @@ async function guardarFotosVehiculo(
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
 
+  logger.info(`[FOTOS] SUPABASE_URL present: ${!!supabaseUrl}, SERVICE_KEY present: ${!!supabaseServiceKey}, KEY_LENGTH: ${supabaseServiceKey?.length || 0}`);
+
   // ── Supabase Storage path (production) ──────────────────────────────────
   if (supabaseUrl && supabaseServiceKey) {
     const { createClient } = await import('@supabase/supabase-js');
