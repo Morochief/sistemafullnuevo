@@ -2278,7 +2278,7 @@ app.post('/api/viaje/stop', requireAuth, async (req, res) => {
       : null;
     const distanciaOdometro = kmFinal - kmInicialNum;
     const diferencia = distanciaGPS != null ? Math.abs(distanciaOdometro - distanciaGPS) : 0;
-    const discrepanciaPorcentaje = distanciaGPS != null && distanciaGPS > 0
+    const discrepanciaPorcentaje = distanciaGPS != null && distanciaGPS > 0 && distanciaOdometro > 0
       ? (diferencia / distanciaGPS) * 100
       : 0;
     const alertaDiscrepancia = discrepanciaPorcentaje > 20;

@@ -16,7 +16,7 @@ function calcDiscrepancia(
   distanciaOdometro: number,
   distanciaGPS: number | null
 ): { discrepanciaPorcentaje: number; alertaDiscrepancia: boolean } {
-  if (distanciaGPS == null || distanciaGPS <= 0) {
+  if (distanciaGPS == null || distanciaGPS <= 0 || distanciaOdometro <= 0) {
     return { discrepanciaPorcentaje: 0, alertaDiscrepancia: false };
   }
   const diferencia = Math.abs(distanciaOdometro - distanciaGPS);
@@ -155,6 +155,13 @@ describe('calcDiscrepancia', () => {
 
   it('viaje urbano real: odómetro 3km sin GPS → sin alerta', () => {
     const { alertaDiscrepancia } = calcDiscrepancia(3, null);
+    expect(alertaDiscrepancia).toBe(false);
+  });
+
+  it('odómetro 0 (km inicio = km fin) → sin alerta aunque haya GPS', () => {
+    // km inicial = km final = 188200 → distanciaOdometro = 0 → no calcular discrepancia
+    const { discrepanciaPorcentaje, alertaDiscrepancia } = calcDiscrepancia(0, 0.5);
+    expect(discrepanciaPorcentaje).toBe(0);
     expect(alertaDiscrepancia).toBe(false);
   });
 

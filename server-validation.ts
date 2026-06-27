@@ -189,7 +189,7 @@ export const ViajeStartSchema = z.object({
   ubicacionInicio: z.object({
     lat: z.number().min(-90).max(90),
     lng: z.number().min(-180).max(180)
-  }),
+  }).nullable().optional(),
   fotoOdometroInicio: z.string().min(1, 'Foto del odómetro requerida'),
   kmInicial: z.number().positive('Kilometraje inicial debe ser positivo')
 }).refine(
