@@ -142,75 +142,147 @@ function useGPS() {
   return { location, error, getCurrentLocation };
 }
 
-// Hook para viaje
+// Hook para viaje — hybrid persistence (localStorage + server, igual que useTimer)
 function useViaje({ currentUser }: { currentUser: any }) {
-  const [viajeActivo, setViajeActivo] = useState(false);
-  const [ubicacionInicio, setUbicacionInicio] = useState<any>(null);
-  const [horaInicio, setHoraInicio] = useState<Date | null>(null);
+  const viajePrefix = `afull_viaje_${currentUser?.usuario || 'guest'}`;
+  const viajeKeyActivo    = `${viajePrefix}_activo`;
+  const viajeKeyInicio    = `${viajePrefix}_inicio`;
+  const viajeKeyKmInicio  = `${viajePrefix}_kmInicio`;
+  const viajeKeyUbicacion = `${viajePrefix}_ubicacion`;
+
+  // Layer 1 — localStorage (instant, survives refresh)
+  const [viajeActivo, setViajeActivo] = useState<boolean>(() => {
+    try { return localStorage.getItem(viajeKeyActivo) === 'true'; } catch { return false; }
+  });
+  const [ubicacionInicio, setUbicacionInicio] = useState<any>(() => {
+    try { const s = localStorage.getItem(viajeKeyUbicacion); return s ? JSON.parse(s) : null; } catch { return null; }
+  });
+  const [horaInicio, setHoraInicio] = useState<Date | null>(() => {
+    try { const s = localStorage.getItem(viajeKeyInicio); return s ? new Date(s) : null; } catch { return null; }
+  });
+  const [kmInicio, setKmInicio] = useState<number | null>(() => {
+    try { const s = localStorage.getItem(viajeKeyKmInicio); return s ? parseFloat(s) : null; } catch { return null; }
+  });
   const [duracionSegundos, setDuracionSegundos] = useState(0);
-  const [kmInicio, setKmInicio] = useState<number | null>(null);
-  
+
   const { getCurrentLocation } = useGPS();
-  
+
+  // Sync localStorage on state change
+  useEffect(() => {
+    try {
+      localStorage.setItem(viajeKeyActivo, String(viajeActivo));
+      if (horaInicio) localStorage.setItem(viajeKeyInicio, horaInicio.toISOString());
+      else localStorage.removeItem(viajeKeyInicio);
+      if (kmInicio != null) localStorage.setItem(viajeKeyKmInicio, String(kmInicio));
+      else localStorage.removeItem(viajeKeyKmInicio);
+      if (ubicacionInicio) localStorage.setItem(viajeKeyUbicacion, JSON.stringify(ubicacionInicio));
+      else localStorage.removeItem(viajeKeyUbicacion);
+    } catch {}
+  }, [viajeActivo, horaInicio, kmInicio, ubicacionInicio, viajeKeyActivo, viajeKeyInicio, viajeKeyKmInicio, viajeKeyUbicacion]);
+
+  // Layer 2 — Server restore on mount
+  useEffect(() => {
+    if (!currentUser) return;
+    const loadActiveViaje = async () => {
+      try {
+        const res = await authFetchJSON<{ success: boolean; data: any }>(`/api/viaje/active/${currentUser.usuario}`);
+        if (res.success && res.data) {
+          const serverViaje = res.data;
+          const localStart = localStorage.getItem(viajeKeyInicio);
+          const useServer = !localStart || new Date(serverViaje.inicio) >= new Date(localStart);
+          if (useServer && serverViaje.activo) {
+            setViajeActivo(true);
+            setHoraInicio(new Date(serverViaje.inicio));
+            setKmInicio(serverViaje.kmInicial);
+            setUbicacionInicio(serverViaje.ubicacionInicio || null);
+          }
+        } else if (res.success && !res.data) {
+          // No viaje activo en servidor — limpiar estado local si quedó desincronizado
+          setViajeActivo(false);
+        }
+      } catch (e) {
+        console.error('Failed to load active viaje from server:', e);
+      }
+    };
+    loadActiveViaje();
+  }, [currentUser]);
+
+  // Duration counter
   useEffect(() => {
     if (!viajeActivo || !horaInicio) return;
-    
     const interval = setInterval(() => {
-      const ahora = new Date();
-      const segundos = Math.floor((ahora.getTime() - horaInicio.getTime()) / 1000);
-      setDuracionSegundos(segundos);
+      setDuracionSegundos(Math.floor((new Date().getTime() - horaInicio.getTime()) / 1000));
     }, 1000);
-    
     return () => clearInterval(interval);
   }, [viajeActivo, horaInicio]);
-  
+
+  const clearLocalStorage = () => {
+    try {
+      localStorage.removeItem(viajeKeyActivo);
+      localStorage.removeItem(viajeKeyInicio);
+      localStorage.removeItem(viajeKeyKmInicio);
+      localStorage.removeItem(viajeKeyUbicacion);
+    } catch {}
+  };
+
   const iniciarViaje = async (contextData: any) => {
-    try {
-      const coords = await getCurrentLocation();
-      const now = new Date();
-      
-      setUbicacionInicio(coords);
-      setHoraInicio(now);
-      setViajeActivo(true);
-      setKmInicio(contextData.kmInicial);
-      
-      await authFetchJSON('/api/viaje/start', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          usuario: currentUser.usuario,
-          ubicacionInicio: coords,
-          ...contextData
-        })
-      });
-    } catch (error) {
-      console.error('Error iniciando viaje:', error);
-      throw error;
-    }
+    let coords = null;
+    try { coords = await getCurrentLocation(); } catch {}
+    const now = new Date();
+
+    setUbicacionInicio(coords);
+    setHoraInicio(now);
+    setViajeActivo(true);
+    setKmInicio(contextData.kmInicial);
+
+    await authFetchJSON('/api/viaje/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        usuario: currentUser.usuario,
+        ubicacionInicio: coords,
+        ...contextData
+      })
+    });
   };
-  
+
   const finalizarViaje = async (dataFin: any) => {
-    try {
-      const coordsFin = await getCurrentLocation();
-      
-      const response = await authFetchJSON('/api/viaje/stop', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          usuario: currentUser.usuario,
-          ubicacionFin: coordsFin,
-          ...dataFin
-        })
-      });
-      
-      setViajeActivo(false);
-      return response;
-    } catch (error) {
-      console.error('Error finalizando viaje:', error);
-      throw error;
-    }
+    let coordsFin = null;
+    try { coordsFin = await getCurrentLocation(); } catch {}
+
+    const response = await authFetchJSON('/api/viaje/stop', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        usuario: currentUser.usuario,
+        ubicacionFin: coordsFin,
+        ...dataFin
+      })
+    });
+
+    setViajeActivo(false);
+    setHoraInicio(null);
+    setKmInicio(null);
+    setUbicacionInicio(null);
+    setDuracionSegundos(0);
+    clearLocalStorage();
+    return response;
   };
-  
+
+  const cancelarViaje = async () => {
+    await authFetchJSON('/api/viaje/cancel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ usuario: currentUser.usuario })
+    });
+    setViajeActivo(false);
+    setHoraInicio(null);
+    setKmInicio(null);
+    setUbicacionInicio(null);
+    setDuracionSegundos(0);
+    clearLocalStorage();
+  };
+
   return {
     viajeActivo,
     ubicacionInicio,
@@ -218,7 +290,8 @@ function useViaje({ currentUser }: { currentUser: any }) {
     duracionSegundos,
     kmInicio,
     iniciarViaje,
-    finalizarViaje
+    finalizarViaje,
+    cancelarViaje,
   };
 }
 
@@ -234,7 +307,8 @@ export default function VehiculoTab({
     duracionSegundos,
     kmInicio,
     iniciarViaje,
-    finalizarViaje
+    finalizarViaje,
+    cancelarViaje,
   } = useViaje({ currentUser });
 
   const [mostrarModalInicio, setMostrarModalInicio] = useState(false);
@@ -289,6 +363,16 @@ export default function VehiculoTab({
             className="w-full mt-4 py-3 px-6 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold flex items-center justify-center gap-2 transition"
           >
             <Square className="w-4 h-4" /> Finalizar Viaje
+          </button>
+          <button
+            onClick={async () => {
+              if (confirm('¿Cancelar el viaje? Los datos no se guardarán.')) {
+                await cancelarViaje();
+              }
+            }}
+            className="w-full mt-2 py-2 px-6 bg-white/5 hover:bg-white/10 text-slate-400 rounded-xl text-sm flex items-center justify-center gap-2 transition"
+          >
+            <X className="w-4 h-4" /> Cancelar viaje (descartar)
           </button>
         </div>
       )}
