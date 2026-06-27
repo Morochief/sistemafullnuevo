@@ -2272,10 +2272,15 @@ app.post('/api/viaje/stop', requireAuth, async (req, res) => {
     }
 
     const kmInicialNum = parseFloat(viajeActivo.kmInicial.toString());
-    const distanciaGPS = calcularDistanciaHaversine(viajeActivo.ubicacionInicio as any, ubicacionFin);
+    const ubicacionInicioGPS = viajeActivo.ubicacionInicio as { lat: number; lng: number } | null;
+    const distanciaGPS = (ubicacionInicioGPS?.lat != null && ubicacionFin?.lat != null)
+      ? calcularDistanciaHaversine(ubicacionInicioGPS, ubicacionFin)
+      : null;
     const distanciaOdometro = kmFinal - kmInicialNum;
-    const diferencia = Math.abs(distanciaOdometro - distanciaGPS);
-    const discrepanciaPorcentaje = distanciaGPS > 0 ? (diferencia / distanciaGPS) * 100 : 0;
+    const diferencia = distanciaGPS != null ? Math.abs(distanciaOdometro - distanciaGPS) : 0;
+    const discrepanciaPorcentaje = distanciaGPS != null && distanciaGPS > 0
+      ? (diferencia / distanciaGPS) * 100
+      : 0;
     const alertaDiscrepancia = discrepanciaPorcentaje > 20;
     const consumoPorKm = combustibleLitros && distanciaOdometro > 0
       ? Math.round((combustibleLitros / distanciaOdometro) * 100) / 100
@@ -2305,7 +2310,7 @@ app.post('/api/viaje/stop', requireAuth, async (req, res) => {
         kmInicial: viajeActivo.kmInicial,
         kmFinal: new Decimal(kmFinal),
         distanciaOdometro: new Decimal(Math.round(distanciaOdometro * 10) / 10),
-        distanciaGPS: new Decimal(Math.round(distanciaGPS * 10) / 10),
+        distanciaGPS: distanciaGPS != null ? new Decimal(Math.round(distanciaGPS * 10) / 10) : null,
         combustibleLitros: combustibleLitros ? new Decimal(combustibleLitros) : null,
         combustibleCosto: new Decimal(combustibleCosto),
         total: new Decimal(combustibleCosto),
@@ -2332,7 +2337,7 @@ app.post('/api/viaje/stop', requireAuth, async (req, res) => {
       usuario: req.user?.usuario || usuario,
       accion: 'viaje_stop',
       recurso: `/api/viaje/${viajeActivo.id}`,
-      detalle: `proyectoId=${viajeActivo.proyectoId}, distanciaGPS=${distanciaGPS.toFixed(1)}, distanciaOdometro=${distanciaOdometro.toFixed(1)}, discrepancia=${discrepanciaPorcentaje.toFixed(1)}%, alerta=${alertaDiscrepancia}`,
+      detalle: `proyectoId=${viajeActivo.proyectoId}, distanciaGPS=${distanciaGPS != null ? distanciaGPS.toFixed(1) : 'N/A'}, distanciaOdometro=${distanciaOdometro.toFixed(1)}, discrepancia=${discrepanciaPorcentaje.toFixed(1)}%, alerta=${alertaDiscrepancia}`,
       resultado: 'success',
       ip: clientIp,
     });
