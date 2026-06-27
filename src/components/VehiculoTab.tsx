@@ -134,7 +134,7 @@ function useGPS() {
           setError(error.message);
           reject(error.message);
         },
-        { enableHighAccuracy: true, timeout: 10000 }
+        { enableHighAccuracy: true, timeout: 30000, maximumAge: 60000 }
       );
     });
   }, []);

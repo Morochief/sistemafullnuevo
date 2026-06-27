@@ -10,6 +10,24 @@ interface Props {
 
 const VIAJE_SIN_PROYECTO = 'viaje_particular';
 
+function compressImage(base64: string, maxWidth = 1200, quality = 0.75): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = img.width > maxWidth ? maxWidth / img.width : 1;
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { resolve(base64); return; }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(base64);
+    img.src = base64;
+  });
+}
+
 function useCameraCapture() {
   const [photo, setPhoto] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -18,7 +36,8 @@ function useCameraCapture() {
   const capturePhoto = async (file: File) => {
     const reader = new FileReader();
     reader.onload = async (e) => {
-      const base64 = e.target?.result as string;
+      const raw = e.target?.result as string;
+      const base64 = await compressImage(raw);
       setPhoto(base64);
       setIsProcessing(false);
     };
