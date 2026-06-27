@@ -272,11 +272,11 @@ export const RegistroVehiculoPatchSchema = z.object({
 }).refine(
   (data) => {
     if (data.kmInicial !== undefined && data.kmFinal !== undefined) {
-      return data.kmFinal > data.kmInicial;
+      return data.kmFinal >= data.kmInicial; // allow equal km for zero-distance trips
     }
     return true;
   },
-  { message: 'Kilometraje final debe ser mayor que el inicial', path: ['kmFinal'] }
+  { message: 'Kilometraje final no puede ser menor que el inicial', path: ['kmFinal'] }
 );
 
 /**
