@@ -2749,6 +2749,18 @@ app.patch('/api/vehiculo/registro/:id', requireAuth, requireAdmin, async (req, r
       total = patchData.precioLitro * combustibleLitros;
     }
 
+    // Handle photo updates — upload to Supabase Storage if new base64 photos provided
+    let fotoInicio: string | undefined;
+    let fotoFin: string | undefined;
+    if (patchData.fotoOdometroInicio?.startsWith('data:')) {
+      const fotos = await guardarFotosVehiculo(id, patchData.fotoOdometroInicio, existing.fotoOdometroFin ?? '');
+      fotoInicio = fotos.inicio;
+    }
+    if (patchData.fotoOdometroFin?.startsWith('data:')) {
+      const fotos = await guardarFotosVehiculo(id, existing.fotoOdometroInicio ?? '', patchData.fotoOdometroFin);
+      fotoFin = fotos.fin;
+    }
+
     const updated = await prisma.registroVehiculo.update({
       where: { id },
       data: {
@@ -2763,6 +2775,8 @@ app.patch('/api/vehiculo/registro/:id', requireAuth, requireAdmin, async (req, r
         alertaDiscrepancia,
         ...(patchData.descripcion !== undefined && { descripcion: patchData.descripcion }),
         ...(patchData.fecha !== undefined && { fecha: new Date(patchData.fecha) }),
+        ...(fotoInicio !== undefined && { fotoOdometroInicio: fotoInicio }),
+        ...(fotoFin !== undefined && { fotoOdometroFin: fotoFin }),
       }
     });
 

@@ -255,6 +255,8 @@ export const RegistroVehiculoPatchSchema = z.object({
   precioLitro: z.number().positive('Precio por litro debe ser positivo').optional(),
   total: z.number().positive('Total debe ser positivo').optional(),
   descripcion: z.string().max(500).transform(sanitizeHTML).optional(),
+  fotoOdometroInicio: z.string().optional(),
+  fotoOdometroFin: z.string().optional(),
   fecha: z.string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha debe estar en formato YYYY-MM-DD')
     .refine(

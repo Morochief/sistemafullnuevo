@@ -60,6 +60,8 @@ interface EditFormData {
   total: number;
   descripcion: string;
   fecha: string;
+  fotoOdometroInicio?: string; // base64 new photo or existing URL
+  fotoOdometroFin?: string;
 }
 
 function useVehiculoCRUD(onRefresh: () => Promise<void>) {
@@ -80,7 +82,9 @@ function useVehiculoCRUD(onRefresh: () => Promise<void>) {
         : undefined,
       total: registro.total,
       descripcion: registro.descripcion,
-      fecha: registro.fecha
+      fecha: registro.fecha,
+      fotoOdometroInicio: registro.fotoOdometroInicio,
+      fotoOdometroFin: registro.fotoOdometroFin,
     });
     setFeedback(null);
   }, []);
@@ -443,6 +447,24 @@ interface ViajeCardProps {
 
 // ─── EDIT MODAL ────────────────────────────────────────────────────────────
 
+function compressImage(base64: string, maxWidth = 1200, quality = 0.75): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = img.width > maxWidth ? maxWidth / img.width : 1;
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { resolve(base64); return; }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(base64);
+    img.src = base64;
+  });
+}
+
 interface EditModalProps {
   registro: RegistroVehiculo;
   formData: EditFormData;
@@ -589,6 +611,50 @@ function EditModal({
                 className="glass-input w-full rounded-xl px-4 py-3 text-sm min-h-[100px] resize-none"
                 placeholder="Descripción del viaje..."
               />
+            </div>
+
+            {/* Fotos del Odómetro */}
+            <div className="grid grid-cols-2 gap-4">
+              {(['fotoOdometroInicio', 'fotoOdometroFin'] as const).map((field) => {
+                const label = field === 'fotoOdometroInicio' ? 'Foto Inicio' : 'Foto Fin';
+                const current = formData[field];
+                return (
+                  <div key={field}>
+                    <label className="text-xs font-mono uppercase tracking-wider text-slate-400 mb-2 block">
+                      {label}
+                    </label>
+                    {current && (
+                      <img
+                        src={current}
+                        alt={label}
+                        className="w-full h-24 object-cover rounded-lg mb-2 border border-white/10"
+                      />
+                    )}
+                    <label className="flex items-center gap-2 cursor-pointer px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs text-slate-400 transition">
+                      <Camera className="w-4 h-4" />
+                      <span>Cambiar foto</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        disabled={isSubmitting}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = async (ev) => {
+                            const raw = ev.target?.result as string;
+                            const compressed = await compressImage(raw);
+                            onUpdateField(field, compressed);
+                          };
+                          reader.readAsDataURL(file);
+                        }}
+                      />
+                    </label>
+                  </div>
+                );
+              })}
             </div>
 
             {/* Feedback */}
