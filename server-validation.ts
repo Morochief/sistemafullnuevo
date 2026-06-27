@@ -209,7 +209,7 @@ export const ViajeStopSchema = z.object({
   ubicacionFin: z.object({
     lat: z.number().min(-90).max(90),
     lng: z.number().min(-180).max(180)
-  }),
+  }).nullable().optional(),
   fotoOdometroFin: z.string().min(1, 'Foto del odómetro requerida'),
   kmFinal: z.number().positive('Kilometraje final debe ser positivo'),
   combustibleLitros: z.number().positive().optional(),
