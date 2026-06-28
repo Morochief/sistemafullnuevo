@@ -199,6 +199,14 @@ function useVehiculoCRUD(onRefresh: () => Promise<void>) {
   };
 }
 
+const addCacheBuster = (url: string | undefined): string => {
+  if (!url) return '';
+  if (url.startsWith('data:')) return url;
+  const separator = url.includes('?') ? '&' : '?';
+  // Use a query parameter cache buster
+  return `${url}${separator}t=${Date.now()}`;
+};
+
 export default function VehiculosAdminView({ data, onRefresh, initialEditId }: Props) {
   const [viewMode, setViewMode] = useState<'list' | 'dashboard'>('list');
   const [filtroAlerta, setFiltroAlerta] = useState<'todos' | 'alertas' | 'ok'>('todos');
@@ -408,7 +416,7 @@ export default function VehiculosAdminView({ data, onRefresh, initialEditId }: P
               Odómetro {fotoModal.tipo}
             </h3>
             <img
-              src={fotoModal.url}
+              src={addCacheBuster(fotoModal.url)}
               alt={`Odómetro ${fotoModal.tipo}`}
               className="w-full rounded-lg"
             />
@@ -630,7 +638,7 @@ function EditModal({
                     </label>
                     {current && (
                       <img
-                        src={current}
+                        src={addCacheBuster(current)}
                         alt={label}
                         className="w-full h-24 object-cover rounded-lg mb-2 border border-white/10"
                       />
@@ -1059,7 +1067,7 @@ function ViajeCard({ registro, onVerFoto, onEdit, onDelete }: ViajeCardProps) {
                     className="group relative aspect-video rounded-lg overflow-hidden border border-white/10 hover:border-blue-500/50 transition"
                   >
                     <img
-                      src={registro.fotoOdometroInicio}
+                      src={addCacheBuster(registro.fotoOdometroInicio)}
                       alt="Odómetro Inicio"
                       className="w-full h-full object-cover"
                     />
@@ -1076,7 +1084,7 @@ function ViajeCard({ registro, onVerFoto, onEdit, onDelete }: ViajeCardProps) {
                     className="group relative aspect-video rounded-lg overflow-hidden border border-white/10 hover:border-emerald-500/50 transition"
                   >
                     <img
-                      src={registro.fotoOdometroFin}
+                      src={addCacheBuster(registro.fotoOdometroFin)}
                       alt="Odómetro Fin"
                       className="w-full h-full object-cover"
                     />
