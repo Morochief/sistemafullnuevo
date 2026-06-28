@@ -120,6 +120,13 @@ async function migrateData() {
     if (jsonData.registros && jsonData.registros.length > 0) {
       console.log('📦 Migrating registros...');
       for (const registro of jsonData.registros) {
+        // Skip header/garbage rows or invalid numbers
+        const cantidadNum = parseFloat(registro.cantidad);
+        const precioNum = parseFloat(registro.precioUnitario);
+        if (isNaN(cantidadNum) || isNaN(precioNum) || !registro.clienteId || !registro.proyectoId) {
+          continue;
+        }
+
         // Map concepto to enum
         let concepto: 'MO' | 'INSUMO' | 'VEHICULO' = 'MO';
         if (registro.concepto === 'Insumo') concepto = 'INSUMO';
@@ -141,8 +148,8 @@ async function migrateData() {
             concepto,
             descripcion: registro.descripcion,
             colaboradorId: registro.colaboradorId || null,
-            hsInicio: registro.hsInicio || null,
-            hsFin: registro.hsFin || null,
+            hsInicio: registro.hsInicio ? registro.hsInicio.substring(0, 5) : null,
+            hsFin: registro.hsFin ? registro.hsFin.substring(0, 5) : null,
             hsTotal: registro.hsTotal ? String(registro.hsTotal) : null,
             cantidad: String(registro.cantidad),
             precioUnitario: String(registro.precioUnitario),
@@ -160,8 +167,8 @@ async function migrateData() {
             concepto,
             descripcion: registro.descripcion,
             colaboradorId: registro.colaboradorId || null,
-            hsInicio: registro.hsInicio || null,
-            hsFin: registro.hsFin || null,
+            hsInicio: registro.hsInicio ? registro.hsInicio.substring(0, 5) : null,
+            hsFin: registro.hsFin ? registro.hsFin.substring(0, 5) : null,
             hsTotal: registro.hsTotal ? String(registro.hsTotal) : null,
             cantidad: String(registro.cantidad),
             precioUnitario: String(registro.precioUnitario),
