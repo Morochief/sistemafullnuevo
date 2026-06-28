@@ -43,6 +43,31 @@ async function migrateData() {
     console.log(`   - ${jsonData.registros?.length || 0} registros`);
     console.log(`   - ${jsonData.registrosVehiculo?.length || 0} registros vehículo\n`);
 
+    // Ensure "viaje_particular" client and project exist to prevent FK violations
+    console.log('📦 Setting up fallback "viaje_particular" entities...');
+    await prisma.cliente.upsert({
+      where: { id: 'viaje_particular' },
+      update: {},
+      create: {
+        id: 'viaje_particular',
+        nombre: 'Viaje Particular',
+        codigo: 'PART',
+        fechaCreacion: new Date()
+      }
+    });
+
+    await prisma.proyecto.upsert({
+      where: { id: 'viaje_particular' },
+      update: {},
+      create: {
+        id: 'viaje_particular',
+        clienteId: 'viaje_particular',
+        nombre: 'Viaje Particular',
+        estado: 'EN_PROCESO',
+        fechaInicio: new Date()
+      }
+    });
+
     // 1. Migrate Clientes
     if (jsonData.clientes && jsonData.clientes.length > 0) {
       console.log('📦 Migrating clientes...');
@@ -193,6 +218,7 @@ async function migrateData() {
         await prisma.registroVehiculo.upsert({
           where: { id: regVeh.id },
           update: {
+            usuario: regVeh.usuario || 'admin',
             clienteId: regVeh.clienteId,
             clienteNombre: regVeh.clienteNombre,
             proyectoId: regVeh.proyectoId,
@@ -211,6 +237,7 @@ async function migrateData() {
           },
           create: {
             id: regVeh.id,
+            usuario: regVeh.usuario || 'admin',
             clienteId: regVeh.clienteId,
             clienteNombre: regVeh.clienteNombre,
             proyectoId: regVeh.proyectoId,
