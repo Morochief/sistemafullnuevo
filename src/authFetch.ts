@@ -9,6 +9,7 @@
 
 // SECURITY Phase 2 Fix #3: CSRF token cache
 let csrfToken: string | null = null;
+let csrfTokenPromise: Promise<string> | null = null;
 
 /**
  * Get CSRF token from server
@@ -18,23 +19,32 @@ async function fetchCSRFToken(): Promise<string> {
   if (csrfToken) {
     return csrfToken;
   }
-  
-  try {
-    const response = await fetch('/api/csrf-token', {
-      credentials: 'include' // Include cookies
-    });
-    
-    if (!response.ok) {
-      throw new Error('Failed to fetch CSRF token');
-    }
-    
-    const data = await response.json();
-    csrfToken = data.data.csrfToken;
-    return csrfToken!;
-  } catch (error) {
-    console.error('[CSRF] Failed to fetch CSRF token:', error);
-    throw error;
+  if (csrfTokenPromise) {
+    return csrfTokenPromise;
   }
+  
+  csrfTokenPromise = (async () => {
+    try {
+      const response = await fetch('/api/csrf-token', {
+        credentials: 'include' // Include cookies
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch CSRF token');
+      }
+      
+      const data = await response.json();
+      csrfToken = data.data.csrfToken;
+      return csrfToken!;
+    } catch (error) {
+      console.error('[CSRF] Failed to fetch CSRF token:', error);
+      throw error;
+    } finally {
+      csrfTokenPromise = null;
+    }
+  })();
+
+  return csrfTokenPromise;
 }
 
 /**
@@ -78,6 +88,7 @@ export async function authFetch(url: string, options: RequestInit = {}): Promise
       ) {
         console.warn('[authFetch] CSRF token invalid/expired, refreshing and retrying once...');
         csrfToken = null; // invalidar cache
+        csrfTokenPromise = null;
         const newToken = await fetchCSRFToken(); // obtener token fresco del servidor
         headers.set('X-CSRF-Token', newToken);
         // Reintentar la request original con el token nuevo (sin más retries)

@@ -3,8 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// Load environment variables FIRST
-import 'dotenv/config';
+import dotenv from 'dotenv';
+dotenv.config({ path: '.env.local' });
+dotenv.config();
+
 
 import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
@@ -502,8 +504,13 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
  * SECURITY Phase 2 Fix #5: Clear JWT cookie
  */
 app.post('/api/auth/logout', (req, res) => {
-  res.clearCookie('jwt');
-  res.clearCookie('sessionId');
+  const cookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax' as const,
+  };
+  res.clearCookie('jwt', cookieOptions);
+  res.clearCookie('sessionId', cookieOptions);
   res.json({
     success: true,
     message: 'Sesión cerrada con éxito'
@@ -1372,14 +1379,16 @@ app.post('/api/clear', requireAuth, requireAdmin, async (req, res) => {
   const clientIp = getClientIp(req);
   const userPayload = req.user!;
   try {
-    // Limpiar Supabase en orden correcto (respetar FK constraints)
-    await prisma.registro.deleteMany({});
-    await prisma.registroVehiculo.deleteMany({});
-    await prisma.timerActivo.deleteMany({});
-    await prisma.viajeActivo.deleteMany({});
-    await prisma.proyecto.deleteMany({});
-    await prisma.colaborador.deleteMany({});
-    await prisma.cliente.deleteMany({});
+    // Limpiar Supabase en orden correcto dentro de una sola transacción
+    await prisma.$transaction([
+      prisma.registro.deleteMany({}),
+      prisma.registroVehiculo.deleteMany({}),
+      prisma.timerActivo.deleteMany({}),
+      prisma.viajeActivo.deleteMany({}),
+      prisma.proyecto.deleteMany({}),
+      prisma.colaborador.deleteMany({}),
+      prisma.cliente.deleteMany({}),
+    ]);
 
     auditLog({
       usuario: userPayload.usuario,
@@ -2160,6 +2169,8 @@ async function guardarFotosVehiculo(
   fotoBase64Inicio: string,
   fotoBase64Fin: string
 ): Promise<{ inicio: string; fin: string }> {
+  const isUrlOrPath = (str: string) => !str || str.startsWith('http') || str.startsWith('/uploads');
+
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
 
@@ -2171,6 +2182,8 @@ async function guardarFotosVehiculo(
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     const uploadFoto = async (dataUrl: string, nombre: string): Promise<string> => {
+      if (isUrlOrPath(dataUrl)) return dataUrl || '';
+
       const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '');
       const buffer = Buffer.from(base64, 'base64');
       const storagePath = `vehiculos/${registroId}/${nombre}.jpg`;
@@ -2196,16 +2209,19 @@ async function guardarFotosVehiculo(
 
   // ── Local filesystem fallback (development) ─────────────────────────────
   const uploadsDir = path.join(__dirname, 'uploads', 'vehiculos', registroId);
-  await fs.promises.mkdir(uploadsDir, { recursive: true });
 
-  const extraerBase64 = (dataUrl: string) => dataUrl.replace(/^data:image\/\w+;base64,/, '');
+  const processLocalFoto = async (dataUrl: string, filename: string, relativePath: string): Promise<string> => {
+    if (isUrlOrPath(dataUrl)) return dataUrl || '';
 
-  await fs.promises.writeFile(path.join(uploadsDir, 'odometro_inicio.jpg'), extraerBase64(fotoBase64Inicio), 'base64');
-  await fs.promises.writeFile(path.join(uploadsDir, 'odometro_fin.jpg'), extraerBase64(fotoBase64Fin), 'base64');
+    await fs.promises.mkdir(uploadsDir, { recursive: true });
+    const raw = dataUrl.replace(/^data:image\/\w+;base64,/, '');
+    await fs.promises.writeFile(path.join(uploadsDir, filename), raw, 'base64');
+    return relativePath;
+  };
 
   return {
-    inicio: `/uploads/vehiculos/${registroId}/odometro_inicio.jpg`,
-    fin: `/uploads/vehiculos/${registroId}/odometro_fin.jpg`,
+    inicio: await processLocalFoto(fotoBase64Inicio, 'odometro_inicio.jpg', `/uploads/vehiculos/${registroId}/odometro_inicio.jpg`),
+    fin: await processLocalFoto(fotoBase64Fin, 'odometro_fin.jpg', `/uploads/vehiculos/${registroId}/odometro_fin.jpg`),
   };
 }
 
@@ -2335,9 +2351,10 @@ app.post('/api/viaje/stop', requireAuth, async (req, res) => {
 
     const kmInicialNum = parseFloat(viajeActivo.kmInicial.toString());
     const ubicacionInicioGPS = viajeActivo.ubicacionInicio as { lat: number; lng: number } | null;
-    const distanciaGPS = (ubicacionInicioGPS?.lat != null && ubicacionFin?.lat != null)
-      ? calcularDistanciaHaversine(ubicacionInicioGPS, ubicacionFin)
-      : null;
+    const distanciaGPS = (
+      ubicacionInicioGPS?.lat != null && ubicacionInicioGPS?.lng != null &&
+      ubicacionFin?.lat != null && ubicacionFin?.lng != null
+    ) ? calcularDistanciaHaversine(ubicacionInicioGPS, ubicacionFin) : null;
     const distanciaOdometro = kmFinal - kmInicialNum;
     const diferencia = distanciaGPS != null ? Math.abs(distanciaOdometro - distanciaGPS) : 0;
     const discrepanciaPorcentaje = distanciaGPS != null && distanciaGPS > 0 && distanciaOdometro > 0
