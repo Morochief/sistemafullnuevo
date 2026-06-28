@@ -470,6 +470,372 @@ PORT          = 3000
 ```
 Genera `dist/index.html` (frontend) y `dist/server.cjs` (backend) en un solo paso.
 
+### uploads/vehiculos/ Must Be in .gitignore
+**Issue**: Las fotos de odómetro (base64 → archivos JPG) se guardan en `uploads/vehiculos/<registroId>/` en el servidor. Al hacer el primer `git add .` estas fotos se incluyeron en el commit, subiendo archivos binarios innecesarios al repo.
+
+**Fix aplicado**: `uploads/vehiculos/` agregado a `.gitignore` y removido del tracking con `git rm -r --cached uploads/vehiculos/`.
+
+**Advertencia de producción**: El filesystem de Render es **efímero** — las fotos se pierden en cada deploy. Si las fotos de odómetro son datos importantes, migrar a Supabase Storage o Cloudinary antes de ir a producción real.
+
+### Render Environment Variables — Cuáles van y cuáles no
+**Context**: El proyecto tiene variables en `.env.local` mezcladas: algunas son para Prisma/backend, otras son solo para el frontend Vite en desarrollo.
+
+**Solo estas 4 van a Render** (producción):
+```
+DATABASE_URL   → pooler con pgbouncer=true (queries de app)
+DIRECT_URL     → pooler sin pgbouncer (migraciones Prisma)
+JWT_SECRET     → generar con: node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+NODE_ENV       → production
+```
+
+**PORT no va** — Render lo inyecta automáticamente. `server.ts` ya tiene el fallback correcto:
+```typescript
+const PORT = Number(process.env.PORT) || 3000
+```
+
+**Estas NO van a Render** (solo dev/frontend):
+```
+VITE_SUPABASE_URL        → solo Vite en desarrollo
+VITE_SUPABASE_ANON_KEY   → solo Vite en desarrollo
+SUPABASE_URL             → no usado por el backend (usa Prisma directo)
+SUPABASE_PUBLISHABLE_KEY → no usado por el backend
+SUPABASE_SECRET_KEY      → no usado por el backend
+SUPABASE_JWKS_URL        → no usado por el backend
+PORT                     → NO configurar en Render, lo asigna la plataforma
+```
+
+**Razón**: Prisma solo necesita `DATABASE_URL` y `DIRECT_URL`. El cliente Supabase JS (`src/lib/supabase.ts`) solo corre en el frontend y usa las variables `VITE_*` que Vite inyecta en build time.
+
+### Server Bundle Must Use ESM Format (not CJS)
+**Issue**: El build original usaba `--format=cjs` para esbuild. En CJS, `import.meta.url` es `undefined`, causando que `fileURLToPath(import.meta.url)` tire `ERR_INVALID_ARG_TYPE` al arrancar el servidor en producción.
+
+**Fix aplicado en `package.json`**:
+```json
+"build": "vite build && esbuild server.ts --bundle --platform=node --format=esm --packages=external --sourcemap --outfile=dist/server.mjs",
+"start": "node dist/server.mjs"
+```
+
+**Start Command en Render**: `node dist/server.mjs` (no `dist/server.cjs`)
+
+**Razón**: El proyecto tiene `"type": "module"` en `package.json` y usa `import.meta.url` para resolver `__filename`/`__dirname` (patrón ESM). Con `--format=esm`, `import.meta` funciona nativamente. Con `--format=cjs`, queda vacío y crashea.
+
+### CSP Production Config Must Include Google Fonts
+**Issue**: En producción el CSP de Helmet bloquea Google Fonts con el error `"style-src 'self' 'unsafe-inline'"`. Las fuentes de `index.html` se cargan desde `fonts.googleapis.com` (CSS) y `fonts.gstatic.com` (archivos de fuente).
+
+**Fix en `server.ts` CSP directives**:
+```typescript
+styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
+```
+
+**Nota**: El error `/api/data 401` en la consola del browser es **esperado y correcto** — el frontend llama al endpoint antes de que haya sesión. Desaparece al hacer login. No es un bug.
+
+### Inline Edit Pattern for Admin Tabs (sin modal)
+**Context**: Los tabs de Clientes, Proyectos y Colaboradores en AdminPanel usan un patrón de edición inline en lugar de modal separado — más simple para entidades pequeñas donde el formulario tiene 2-3 campos.
+
+**Patrón**:
+```tsx
+// Estado local en el tab component
+const [editingId, setEditingId] = useState<string | null>(null);
+const [editNombre, setEditNombre] = useState('');
+
+const startEdit = (item: Entity) => { setEditingId(item.id); setEditNombre(item.nombre); };
+const cancelEdit = () => setEditingId(null);
+const submitEdit = async () => {
+  await onEdit(editingId!, { nombre: editNombre.trim() });
+  setEditingId(null);
+};
+
+// En el render de cada card:
+{editingId === item.id ? (
+  <motion.div ...> {/* form inline */} </motion.div>
+) : (
+  <DataCard ...>
+    <div className="flex gap-2 mt-2">
+      <button onClick={() => startEdit(item)}>Editar</button>
+      <button onClick={() => { if(confirm(`¿Eliminar "${item.nombre}"?`)) onDelete(item.id); }}>Eliminar</button>
+    </div>
+  </DataCard>
+)}
+```
+
+**Cuándo usar inline vs modal**:
+- **Inline**: entidades simples con 2-3 campos (Clientes, Colaboradores, Proyectos)
+- **Modal** (patrón VehiculosAdminView): entidades complejas con muchos campos, cálculos derivados, o lógica de negocio pesada
+
+**Colores por entidad** (convención del proyecto):
+- Clientes: `emerald` — border-emerald-500/30, bg-emerald-600
+- Proyectos: `cyan` — border-cyan-500/30, bg-cyan-600
+- Colaboradores: `pink` — border-pink-500/30, bg-pink-600
+- Vehículos: `violet` — border-violet-500/30
+
+### Excel Import: ID Mapping Pattern (local IDs → backend IDs)
+**Issue**: `ExcelImporter` genera IDs locales temporales (`cli_xyz`, `pro_abc`) para clientes y proyectos nuevos detectados en el Excel. Si se pasan directamente a `POST /api/registros`, las FK fallan porque esos IDs no existen en Supabase.
+
+**Patrón correcto** — crear en secuencia y mapear IDs:
+```typescript
+const clienteIdMap = new Map<string, string>(); // localId → realId
+const proyectoIdMap = new Map<string, string>();
+
+// 1. Crear clientes nuevos, capturar ID real
+for (const cliente of newFullDbState.clientes) {
+  if (existeEnDb(cliente.id)) {
+    clienteIdMap.set(cliente.id, cliente.id); // ya existe, ID es válido
+  } else {
+    const res = await authFetchJSON('/api/clientes', { method: 'POST', body: ... });
+    clienteIdMap.set(cliente.id, res.data.id); // local → real
+  }
+}
+
+// 2. Crear proyectos usando ID real del cliente
+for (const proyecto of newFullDbState.proyectos) {
+  const realClienteId = clienteIdMap.get(proyecto.clienteId) || proyecto.clienteId;
+  const res = await authFetchJSON('/api/proyectos', { method: 'POST', body: { clienteId: realClienteId, ... } });
+  proyectoIdMap.set(proyecto.id, res.data.id);
+}
+
+// 3. Crear registros usando IDs reales de ambos
+for (const item of registrosNuevos) {
+  await authFetchJSON('/api/registros', { method: 'POST', body: {
+    clienteId: clienteIdMap.get(item.clienteId) || item.clienteId,
+    proyectoId: proyectoIdMap.get(item.proyectoId) || item.proyectoId,
+    ...
+  }});
+}
+```
+
+**Cuando usar**: Cualquier flujo que crea entidades con dependencias en cadena (A → B → C) donde los IDs del frontend son temporales hasta que el backend los persiste.
+
+### /api/save-state Está Deprecado — No Usar
+**Issue**: El endpoint `POST /api/save-state` retorna **501 NOT_IMPLEMENTED**. Cualquier código que lo llame silenciosamente falla — los datos aparecen en UI (memoria React) pero desaparecen al recargar.
+
+**Regla**: Nunca usar `handleSaveState()` para persistir datos. Usar siempre los endpoints CRUD individuales:
+- Clientes → `POST/PUT/DELETE /api/clientes`
+- Proyectos → `POST/PUT/DELETE /api/proyectos`
+- Colaboradores → `POST/PUT/DELETE /api/colaboradores`
+- Registros → `POST/PUT/DELETE /api/registros`
+
+### Testing Handlers in App.tsx — Límite de Testabilidad con Mocks Estáticos
+**Issue**: Los handlers en `App.tsx` (como `handleImportConfirmed`) solo se activan a través de callbacks pasados a componentes hijo. Si el componente está mockeado como un div estático, el handler nunca se ejecuta en tests — los tests solo verifican precondiciones, no el comportamiento real.
+
+**Dos caminos para cobertura completa**:
+
+**Opción A** (rápida, sin refactoring): Agregar un `data-testid` al botón de confirmación real del componente hijo y en el mock del test activar el handler con datos de prueba:
+```tsx
+// Mock con botón funcional que activa el handler con datos de prueba
+vi.mock('../components/ExcelImporter', () => ({
+  default: ({ onImportConfirmed }: any) => (
+    <button data-testid="confirmar-importacion" onClick={() => onImportConfirmed(newDbStateConDatosNuevos)}>
+      Confirmar
+    </button>
+  )
+}));
+// En el test:
+await user.click(screen.getByTestId('confirmar-importacion'));
+await waitFor(() => expect(authFetchJSON).toHaveBeenCalledWith('/api/clientes', ...));
+```
+
+**Opción B** (correcta a largo plazo): Extraer el handler a función pura exportable en `src/lib/importHelpers.ts` para poder testearlo directamente sin React.
+
+**Cuando aplicar**: Cualquier handler de App.tsx con lógica compleja (mapeos, secuencias de API calls) cuyo componente hijo esté mockeado estáticamente.
+
+### Zod Schema Constraints That Reject Excel Data
+**Issue**: El schema `RegistroItemSchema` tiene validaciones estrictas que los datos del Excel frecuentemente violan, causando 400/500 silenciosos:
+
+| Campo | Constraint Zod | Caso Excel problemático |
+|---|---|---|
+| `cantidad` | `.positive()` — debe ser > 0 | Filas con cantidad vacía o 0 |
+| `precioUnitario` | `.positive()` — debe ser > 0 | Colaboradores sin tarifa asignada |
+| `total` | `.positive()` — debe ser > 0 | Filas donde `cantidad * precio = 0` |
+| `descripcion` | `.min(1)` — requerida | Filas vacías o solo espacios |
+| `fecha` | no puede ser futura | Fechas de presupuesto/planificación |
+| `concepto` | `enum(['MO','Insumo','Otros'])` | Valores distintos del Excel |
+
+**Validación defensiva antes de enviar al backend**:
+```typescript
+// Saltar antes de enviar — no crashear toda la importación
+if (!item.cantidad || item.cantidad <= 0) { errores++; continue; }
+if (!item.precioUnitario || item.precioUnitario <= 0) { errores++; continue; }
+const total = item.total > 0 ? item.total : item.cantidad * item.precioUnitario;
+if (total <= 0) { errores++; continue; }
+const conceptoValido: 'MO' | 'Insumo' | 'Otros' =
+  item.concepto === 'MO' ? 'MO' : item.concepto === 'Insumo' ? 'Insumo' : 'Otros';
+```
+
+**Regla**: Siempre aplicar esta validación defensiva en cualquier flujo que envíe datos de origen externo (Excel, API externa, CSV) a `POST /api/registros`.
+
+### /api/clear Must Delete from Supabase, Not database.json
+**Issue**: El endpoint `POST /api/clear` llamaba a `writeDbSafe(initialData)` que escribe en `database.json` local. En producción (Render), ese archivo es efímero y no afecta Supabase. El botón "Restaurar Base" de la UI parecía funcionar pero no borraba nada en Supabase.
+
+**Fix correcto** — usar Prisma `deleteMany` en orden FK:
+```typescript
+await prisma.registro.deleteMany({});
+await prisma.registroVehiculo.deleteMany({});
+await prisma.timerActivo.deleteMany({});
+await prisma.viajeActivo.deleteMany({});
+await prisma.proyecto.deleteMany({});    // después de registros (FK)
+await prisma.colaborador.deleteMany({});
+await prisma.cliente.deleteMany({});     // último (padre de todo)
+```
+
+**Script local de emergencia**: `scripts/reset-supabase.ts` — correr con `npx tsx scripts/reset-supabase.ts` cuando se necesite limpiar Supabase desde la máquina local sin esperar redeploy.
+
+**Regla**: Cualquier operación destructiva sobre datos debe usar Prisma, nunca `writeDbSafe()`. Las funciones `readDb()`, `writeDb()`, `writeDbSafe()` son legacy de `database.json` y no afectan Supabase.
+
+### Excel Import Deduplication Must Use Name, Not Local ID
+**Issue**: `ExcelImporter` genera IDs locales aleatorios en cada ejecución (`cli_gun27gx75`, `cli_mk63u17qr`, etc.). Comparar por `id` para detectar duplicados siempre falla — cada importación crea nuevos clientes/proyectos aunque ya existan en Supabase.
+
+**Fix**: Usar nombre como clave de deduplicación:
+```typescript
+// ✅ CORRECTO — deduplicar por nombre normalizado
+const clientesPorNombre = new Map(dbState.clientes.map(c => [c.nombre.toLowerCase().trim(), c.id]));
+if (clientesPorNombre.has(cliente.nombre.toLowerCase().trim())) {
+  clienteIdMap.set(cliente.id, clientesPorNombre.get(nombre)!); // reusar ID real
+}
+
+// ✅ CORRECTO — proyectos: deduplicar por "clienteId_real::nombre"
+const proyectosPorNombre = new Map(
+  dbState.proyectos.map(p => [`${p.clienteId}::${p.nombre.toLowerCase().trim()}`, p.id])
+);
+
+// ❌ INCORRECTO — siempre falla porque IDs locales nunca coinciden
+const existentes = new Set(dbState.clientes.map(c => c.id));
+if (existentes.has(cliente.id)) { ... } // nunca true
+```
+
+**Regla general**: En cualquier flujo de importación desde fuente externa, la deduplicación de entidades debe hacerse por **atributos de negocio únicos** (nombre, código, combinación nombre+padre), nunca por IDs sintéticos generados localmente.
+
+### RegistroItemSchema No Debe Rechazar Fechas Futuras
+**Issue**: `RegistroItemSchema` tenía un `.refine()` que rechazaba fechas futuras con `"La fecha no puede ser futura"`. Los registros del Excel pueden tener fechas de planificación o presupuesto perfectamente válidas — el schema los rechazaba con 400/500.
+
+**Fix**: Eliminar el refine de fecha futura en `RegistroItemSchema`. Solo mantener el regex de formato:
+```typescript
+// ✅ CORRECTO — solo validar formato
+fecha: z.string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha debe estar en formato YYYY-MM-DD')
+  .optional(),
+```
+
+**Excepción**: Los schemas de vehículo (`RegistroVehiculoUpdateSchema`, `RegistroVehiculoPatchSchema`) conservan la restricción de fecha futura — son para edición manual donde sí tiene sentido.
+
+### Prisma P2000: VARCHAR Overflow desde Excel
+**Issue**: El error `P2000 — The provided value for the column is too long for the column's type` aparece cuando el Excel tiene valores de hora como `"08:00:00"` (8 chars) pero el schema Prisma define `hsInicio`/`hsFin` como `VARCHAR(5)` para formato `"HH:MM"`.
+
+**Fix en dos capas**:
+```typescript
+// 1. server-validation.ts — truncar en Zod antes de que llegue al endpoint
+hsInicio: z.string().optional().transform(v => v ? v.substring(0, 5) : v),
+hsFin: z.string().optional().transform(v => v ? v.substring(0, 5) : v),
+
+// 2. server.ts — truncar en el insert como segunda defensa
+hsInicio: rawItem.hsInicio ? rawItem.hsInicio.substring(0, 5) : null,
+hsFin: rawItem.hsFin ? rawItem.hsFin.substring(0, 5) : null,
+```
+
+**Campos con restricciones de longitud en el schema**:
+| Campo | Tipo | Límite |
+|---|---|---|
+| `hsInicio` | `VARCHAR(5)` | `"HH:MM"` |
+| `hsFin` | `VARCHAR(5)` | `"HH:MM"` |
+| `id` | `VARCHAR(50)` | generados internamente |
+
+**Regla**: Cuando Prisma tira `P2000` y `column_name: "(not available)"`, revisar los campos `VARCHAR` de longitud pequeña. El Excel puede tener `"08:00:00"` donde el schema espera `"08:00"`.
+
+### Prisma P2003: FK Violation por colaboradorId local en importación Excel
+**Issue**: El `ExcelImporter` detecta colaboradores de las descripciones y les asigna IDs locales temporales (`col_xyz`). Al crear registros, esos IDs no existen en la tabla `colaboradores` de Supabase → `P2003 Foreign key constraint violated: registros_colaborador_id_fkey`.
+
+**Patrón de resolución** — mismo que clientes/proyectos, extendido a colaboradores:
+```typescript
+const colaboradorIdMap = new Map<string, string>(); // localId → realId (o '' si falla)
+const colaboradoresPorNombre = new Map(dbState.colaboradores.map(c => [c.nombre.toLowerCase().trim(), c.id]));
+
+for (const colab of newFullDbState.colaboradores) {
+  if (colaboradoresExistentesIds.has(colab.id)) {
+    colaboradorIdMap.set(colab.id, colab.id);
+  } else if (colaboradoresPorNombre.has(colab.nombre.toLowerCase().trim())) {
+    colaboradorIdMap.set(colab.id, colaboradoresPorNombre.get(...)!);
+  } else {
+    const res = await authFetchJSON('/api/colaboradores', { method: 'POST', ... });
+    colaboradorIdMap.set(colab.id, res.data.id);
+  }
+}
+
+// Al crear el registro — colaboradorId es nullable:
+const mappedColabId = rawColabId ? colaboradorIdMap.get(rawColabId) : '';
+const realColaboradorId = mappedColabId || null; // '' o undefined → null (no FK violation)
+```
+
+**Regla**: En importación Excel, TODAS las FK deben resolverse antes de crear registros:
+1. `clienteId` → `clienteIdMap` (requerido)
+2. `proyectoId` → `proyectoIdMap` (requerido)
+3. `colaboradorId` → `colaboradorIdMap` → `null` si no resuelve (campo opcional en Registro)
+
+### Zod: Campos Opcionales que Pueden Ser null Explícito
+**Issue**: `.optional()` en Zod acepta `undefined` pero NO `null`. Si el frontend envía `colaboradorId: null` en JSON, Zod tira `"Invalid input: expected string, received null"`.
+
+**Fix**: Usar `.nullable().optional()` para campos que pueden ser `string | null | undefined`:
+```typescript
+// ✅ CORRECTO — acepta string, null, o undefined
+colaboradorId: z.string().nullable().optional(),
+
+// ❌ INCORRECTO — rechaza null con "expected string, received null"
+colaboradorId: z.string().optional(),
+```
+
+**Cuándo aplica**: Cualquier campo FK opcional (como `colaboradorId`) donde el frontend puede enviar `null` explícitamente cuando la entidad no se pudo resolver en el mapeo de importación Excel.
+
+**Diferencia clave**:
+- `.optional()` → `string | undefined` (no puede estar presente, pero si está debe ser string)
+- `.nullable()` → `string | null`
+- `.nullable().optional()` → `string | null | undefined`
+
+### Excel con Filas de Encabezado Repetidas en el Medio
+**Issue**: El Excel de Kevin tiene filas de encabezado repetidas intercaladas (`"Cliente" | "Proyecto" | "Fecha" | ...`). El parser `xlsx.utils.sheet_to_json()` las lee como datos reales — causan errores en la importación.
+
+**Fix en `server.ts`** — agregar filtro después del skip de filas vacías:
+```typescript
+if (!clientName && !projectName && !descripcion) continue;
+// Skip header rows repeated in the middle of the Excel
+if (clientName.toLowerCase() === 'cliente' || projectName.toLowerCase() === 'proyecto') continue;
+```
+
+**Diagnóstico local**:
+```javascript
+const sospechosas = rows.filter(r => parseFloat(r['Cantidad'] || 0) < 0.001);
+// Si tienen strings como "Cantidad", "Cliente" → son encabezados repetidos
+```
+
+### Render Free Tier Spin-Down Destroys In-Memory CSRF Tokens
+**Issue**: El `csrfTokens` Map en `server.ts` vive en memoria del proceso. Render Free tier "duerme" el servidor después de inactividad y al despertar crea un proceso nuevo — todos los tokens CSRF se pierden. Cualquier browser que tenía un token del proceso anterior recibe `CSRF_TOKEN_INVALID` en todas las requests POST.
+
+**Síntomas**: Funciona desde desktop (sesión activa reciente) pero falla desde mobile o después de períodos de inactividad.
+
+**Fix a largo plazo**: Mover los CSRF tokens a Supabase o usar un esquema stateless (HMAC del sessionId firmado con JWT_SECRET).
+
+**Fix rápido**: Cambiar `sameSite: 'strict'` a `sameSite: 'lax'` en el cookie de `sessionId` en producción — `strict` puede bloquear cookies en mobile browsers en navegación cross-site.
+
+**Ubicación**: `server.ts` → función `validateCSRF()` y `app.get('/api/csrf-token')`.
+
+### CSRF Retry Pattern for In-Memory Token Storage
+**Issue**: `authFetch.ts` cachea el CSRF token en una variable de módulo. En mobile, cuando el OS suspende y reactiva el tab, o cuando Render Free reinicia el servidor (perdiendo el Map en memoria), el token cacheado queda inválido → 403 en todas las requests POST sin retry.
+
+**Fix en `authFetch.ts`** — retry automático una sola vez:
+```typescript
+// Si el servidor responde 403 CSRF, limpiar cache y reintentar UNA vez
+if (response.status === 403) {
+  const errorBody = await response.clone().json().catch(() => ({}));
+  const code = errorBody.error?.code;
+  if (code === 'CSRF_TOKEN_INVALID' || code === 'CSRF_TOKEN_MISSING' || code === 'CSRF_TOKEN_EXPIRED') {
+    csrfToken = null; // limpiar cache
+    const newToken = await fetchCSRFToken();
+    headers.set('X-CSRF-Token', newToken);
+    return fetch(url, { ...options, headers, credentials: 'include' }); // retry una vez
+  }
+}
+```
+
+**Regla**: El retry debe ser máximo 1 vez. Si el segundo intento también falla 403, dejar que el error suba al caller — no crear loops.
+
 ---
 
 ## Notes
@@ -478,3 +844,273 @@ Genera `dist/index.html` (frontend) y `dist/server.cjs` (backend) en un solo pas
 - Remove patterns that are no longer relevant
 - Update patterns as the project evolves
 - Focus on what's unique to this project
+
+### JWT Cookie sameSite Must Be 'lax' in All Environments
+**Issue**: El cookie JWT usaba `sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax'`. En producción (Render), quedaba `'strict'`, que impide que browsers mobile envíen el cookie cuando el usuario accede desde un link externo (WhatsApp, email, Safari ITP).
+
+**Fix**: Usar `'lax'` en todos los entornos:
+```typescript
+// ✅ CORRECTO
+res.cookie('jwt', token, {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax', // lax en todos los entornos — protege CSRF pero funciona en mobile
+  maxAge: 12 * 60 * 60 * 1000
+});
+```
+
+**Diferencia clave**:
+- `'strict'`: el cookie NUNCA se envía desde navegación cross-site (rompe mobile)
+- `'lax'`: el cookie se envía en navegación de nivel superior pero NO en sub-requests cross-site — protección CSRF suficiente
+- `'none'`: siempre se envía (requiere `Secure: true`, solo HTTPS)
+
+**Regla**: Para apps con usuarios móviles, usar `sameSite: 'lax'`. `'strict'` rompe acceso desde links de WhatsApp, email, etc.
+
+### Demo Users Must Have Real Supabase IDs After Migration
+**Issue**: Los `DEMO_USERS` en `server-auth.ts` tenían `colaboradorId: 'col_1'` / `'col_2'` (IDs legacy JSON). Tras migrar a Supabase/Prisma esos IDs no existen → el JWT lleva un ID inválido → `RegistroOperativo.tsx` no encuentra el colaborador → `selectedColaboradorId` vacío → botón "Iniciar Tarea" bloqueado.
+
+**Síntoma clásico**: funciona con Admin (sin `colaboradorId`), falla con Operario/Técnico.
+
+**Cómo obtener IDs reales** (PowerShell):
+```powershell
+Get-Content .env.local | Where-Object { $_ -match '^DATABASE_URL=' } | ForEach-Object {
+  $env:DATABASE_URL = $_.Substring('DATABASE_URL='.Length).Trim('"')
+}
+npx tsx scripts/check-colaboradores.ts
+```
+
+**Checklist post-migración**:
+1. Verificar que `colaboradorId` en `DEMO_USERS` coincida con IDs reales en Supabase
+2. Si los nombres difieren, el fallback por nombre en `RegistroOperativo.tsx` también falla
+3. IDs actuales: Rodrigo → `col_kdsnf4jzk`; Kevin → sin colaborador en DB (crear desde Admin)
+
+### Login Component Must Forward All User Fields from Server Response
+**Issue**: `Login.tsx` llamaba `onLoginSuccess({ nombre, rol, usuario })` — sin `colaboradorId`. El servidor devolvía `colaboradorId` correctamente en `result.data.user`, pero el componente lo descartaba silenciosamente. Resultado: `currentUser.colaboradorId` siempre `undefined` en toda la app, aunque el JWT y la DB estuvieran correctos.
+
+**Síntoma clásico**: Warning en console `colaboradorId: "undefined"` en `RegistroOperativo` aunque `server-auth.ts` tuviera el ID correcto. Difícil de rastrear porque servidor, JWT y DB estaban todos bien — el bug era solo en el "cable" entre Login.tsx y App.tsx.
+
+**Regla**: Al agregar cualquier campo nuevo a la respuesta del login, verificar los 6 puntos del pipeline completo:
+
+```typescript
+// Login.tsx DEBE pasar todos los campos de result.data.user:
+onLoginSuccess({
+  nombre: user.nombre,
+  rol: user.rol,
+  usuario: user.usuario,
+  colaboradorId: user.colaboradorId || undefined  // ← el más fácil de olvidar
+});
+```
+
+**Checklist al agregar campos al JWT/login response**:
+1. `server-auth.ts` → DEMO_USERS tiene el campo
+2. `server.ts` → `generateToken()` incluye el campo
+3. `server.ts` → respuesta del login incluye el campo en `data.user`
+4. `Login.tsx` → `onLoginSuccess` pasa el campo ← **el más fácil de olvidar**
+5. `App.tsx` → `SessionUser` interface incluye el campo
+6. Componente consumidor → usa el campo correctamente
+
+### Session Restoration on Page Reload Requires /api/auth/me
+**Issue**: `checkAuthStatus` en `App.tsx` llamaba `/api/data` al recargar y cargaba `dbState`, pero **nunca seteaba `session`**. Con `session = null`, la app mostraba el Login aunque el JWT cookie fuera válido — el usuario tenía que loguearse en cada refresh.
+
+**Root cause**: El JWT vive en un httpOnly cookie (no accesible desde JS), así que `session` solo se puede restaurar llamando al servidor para que lo lea y devuelva la info del usuario.
+
+**Fix — dos partes**:
+
+1. `server.ts` — `GET /api/auth/me` protegido con `requireAuth`:
+```typescript
+app.get('/api/auth/me', requireAuth, (req, res) => {
+  const user = (req as any).user as JWTPayload;
+  return res.json({ success: true, data: { user: { nombre, rol, usuario, colaboradorId } } });
+});
+```
+
+2. `App.tsx` — `checkAuthStatus` llama `/api/auth/me` primero:
+```typescript
+const meResponse = await fetch('/api/auth/me', { credentials: 'include' });
+if (!meResponse.ok) { setSession(null); return; } // JWT inválido → Login
+setSession(meResult.data.user); // JWT válido → restaurar sesión
+// Cargar datos después — fallo de /api/data NO limpia session
+```
+
+**Regla crítica**: Fallo de `/api/data` NO debe limpiar `session`. Son cosas distintas: autenticación (JWT) vs carga de datos (DB). Si la DB falla pero el JWT es válido → mostrar error de carga, no el Login.
+
+### Render Requires trust proxy=1 for express-rate-limit
+**Issue**: En producción en Render, `express-rate-limit` lanza `ValidationError: ERR_ERL_UNEXPECTED_X_FORWARDED_FOR` porque Render agrega el header `X-Forwarded-For` pero Express no confía en el proxy.
+
+**Fix** — agregar después de `app.use(cors(...))`:
+```typescript
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1); // Render adds exactly one proxy hop
+}
+```
+
+**Nota de seguridad**: Usar `1` (no `true`). `true` confiaría en cualquier proxy y permitiría falsificar IPs. `1` solo confía en el primer proxy (Render), correcto para deployments de un nivel.
+
+**Side effect positivo**: El redirect HTTPS también lee `x-forwarded-proto` — sin `trust proxy`, ese redirect tampoco funciona correctamente en Render.
+
+### Persist UI Context in localStorage to Survive Server Reconnects
+**Issue**: Render Free tier duerme el servidor tras 15 min de inactividad. Al reconectar, React remonta componentes y pierde estado local (`selectedClienteId`, `selectedProyectoId`). El timer sobrevivía (ya persistido en localStorage) pero el contexto se perdía.
+
+**Patrón**: Inicializar con lazy `useState` desde localStorage y sincronizar con `useEffect`:
+```typescript
+const ctxPrefix = `afull_ctx_${currentUser?.usuario || 'guest'}`;
+const [selectedClienteId, setSelectedClienteId] = useState(() => {
+  try { return localStorage.getItem(`${ctxPrefix}_clienteId`) || ''; } catch { return ''; }
+});
+useEffect(() => {
+  try {
+    if (selectedClienteId) localStorage.setItem(`${ctxPrefix}_clienteId`, selectedClienteId);
+    else localStorage.removeItem(`${ctxPrefix}_clienteId`);
+  } catch {}
+}, [selectedClienteId, ctxPrefix]);
+```
+
+**Validación obligatoria** al cargar datos:
+```typescript
+useEffect(() => {
+  if (data.clientes.length === 0) return; // esperar a que cargue
+  if (selectedClienteId && !data.clientes.find(c => c.id === selectedClienteId)) {
+    setSelectedClienteId(''); setSelectedProyectoId(''); // limpiar si fue eliminado
+  }
+}, [data.clientes, data.proyectos]);
+```
+
+**Regla**: Siempre usar prefijo por usuario (`afull_ctx_${usuario}_`) — sin prefijo, dos usuarios en el mismo browser compartirían el estado guardado.
+
+**Cuándo aplicar**: Selectores de "contexto de trabajo" que el usuario configura una vez y usa toda la sesión. No aplicar a estados transitorios (feedback, loading, modales).
+
+### GPS Fields Must Be Optional in Zod Schemas and Handlers
+**Issue**: `ViajeStopSchema` tenía `ubicacionFin` requerido. En mobile sin GPS disponible, el frontend enviaba `null` → Zod rechazaba con 400 → "Error al finalizar viaje". El usuario no podía guardar el viaje aunque tuviera los datos del odómetro.
+
+**Patrón — dos capas consistentes**:
+
+1. **Zod schema** — GPS siempre opcional:
+```typescript
+ubicacionFin: z.object({
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180)
+}).nullable().optional(), // GPS puede no estar disponible en mobile
+```
+
+2. **Handler** — null guard antes de Haversine:
+```typescript
+const distanciaGPS = (ubicacionInicioGPS?.lat != null && ubicacionFin?.lat != null)
+  ? calcularDistanciaHaversine(ubicacionInicioGPS, ubicacionFin)
+  : null;
+// alertaDiscrepancia = false cuando no hay GPS
+const alertaDiscrepancia = distanciaGPS != null && discrepanciaPorcentaje > 20;
+```
+
+**Checklist al agregar campos GPS a un endpoint**:
+1. Schema Zod: `.nullable().optional()`
+2. Handler: guard `?.lat != null` antes de calcular distancia
+3. Campo Prisma: `Decimal?` (nullable)
+4. UI: mostrar "Sin coordenadas GPS" cuando el valor es null
+
+### Render Filesystem Is Ephemeral — Use Supabase Storage for Uploads
+**Issue**: Las fotos de odómetro se guardaban en `uploads/vehiculos/` en el filesystem de Render. Cada deploy borra esos archivos — las fotos desaparecen y las URLs en la DB apuntan a 404.
+
+**Solución**: Migrar `guardarFotosVehiculo()` en `server.ts` para subir a Supabase Storage.
+
+**Plan**:
+1. Crear bucket `vehiculos-fotos` en Supabase dashboard (Storage → New bucket → public)
+2. Agregar en Render: `SUPABASE_URL` y `SUPABASE_SERVICE_KEY` (service_role key, NO anon)
+3. Reemplazar `guardarFotosVehiculo()` para subir con `supabaseAdmin.storage.from('vehiculos-fotos').upload()`
+
+**Regla**: Nunca guardar uploads en el filesystem en Render. Todo archivo persistente va a Supabase Storage, S3, o Cloudinary. El filesystem de Render se borra en cada deploy.
+
+### Decimal Field Precision Must Account for Worst-Case Values
+**Issue**: `discrepancia` era `Decimal(5,2)` — max 999.99. Cuando el GPS producía valores absurdos, `discrepanciaPorcentaje` podía ser miles de %, causando error PostgreSQL `22003 numeric field overflow`.
+
+**Fix doble**:
+1. **Schema** — usar `Decimal(8,2)` para métricas derivadas de fuentes externas (GPS, sensores)
+2. **Código** — capear antes de guardar: `Math.min(valor, 999.9)`
+
+**Diagnóstico**: Error PostgreSQL `22003` con `"A field with precision X, scale Y must round to absolute value less than 10^(X-Y)"` → el campo Decimal es demasiado pequeño.
+
+**Guía de dimensionamiento**:
+- Porcentajes/métricas derivadas de sensores: `Decimal(8,2)` mínimo
+- Precios/totales en Gs: `Decimal(15,2)`
+- `Decimal(5,2)` solo para valores con máximo garantizado conocido
+
+### Supabase Storage Bucket Must Be Public for Direct Image URLs
+**Issue**: El bucket `vehiculos-fotos` estaba creado y los uploads funcionaban, pero era **privado**. Las URLs `https://...supabase.co/storage/v1/object/public/...` retornaban 403. Las fotos salían rotas en la UI.
+
+**Fix**: Supabase dashboard → Storage → `vehiculos-fotos` → Edit bucket → habilitar "Public bucket".
+
+**Diagnóstico**: `npx tsx scripts/test-supabase-storage.ts` — lista buckets, verifica public/private, hace upload de prueba, reporta estado completo.
+
+**Regla**: Al crear buckets para assets públicos (fotos, imágenes), siempre habilitarlos como **public** en el momento de creación. Los buckets privados requieren signed URLs con expiración — innecesario para fotos de odómetro.
+
+### convertPrismaToFrontend Must Include All Fields — Silent Omission Causes Missing Data
+**Issue**: `convertPrismaToFrontend()` mapeaba `registrosVehiculo` pero omitía silenciosamente `fotoOdometroInicio`, `fotoOdometroFin`, `ubicacionInicio`, `ubicacionFin`, `distanciaGPS`, `discrepancia`, etc. El frontend recibía `undefined` aunque los datos estuvieran correctamente en Supabase.
+
+**Síntoma clásico**: Datos existen en la DB y las URLs devuelven 200, pero la UI muestra vacío/roto — sin errores en consola.
+
+**Checklist al agregar un campo nuevo a un modelo Prisma**:
+1. Schema Prisma + `db push`
+2. Escribir al campo en el endpoint que lo crea/actualiza
+3. ✅ **Incluirlo en `convertPrismaToFrontend()`** ← el más fácil de olvidar
+4. Agregar al tipo TypeScript en `src/types.ts`
+
+**Diagnóstico**: Si un campo existe en DB pero no aparece en UI → verificar `convertPrismaToFrontend()` antes de investigar el frontend.
+
+### Never Pass Existing Storage URLs as Base64 Input to Upload Functions
+**Issue**: Al editar fotos en el PATCH, se pasaba la URL de Supabase existente (`https://...supabase.co/...`) a `guardarFotosVehiculo()` como si fuera base64. `Buffer.from(url, 'base64')` produce datos basura que sobreescribían la foto que no había cambiado — foto corrupta silenciosa.
+
+**Regla**: Siempre verificar `startsWith('data:')` antes de procesar como base64:
+
+```typescript
+// ✅ Backend — solo procesar si es base64 nuevo
+if (patchData.fotoOdometroInicio?.startsWith('data:')) {
+  fotoInicio = await uploadSingleFoto(patchData.fotoOdometroInicio, 'nombre');
+}
+
+// ✅ Frontend — solo enviar si es base64 nuevo, no URL existente
+fotoOdometroInicio: formData.fotoOdometroInicio?.startsWith('data:') ? formData.fotoOdometroInicio : undefined
+```
+
+**Cuándo aplica**: Cualquier endpoint de edición que acepta fotos opcionales. El `formData` puede mezclar URLs existentes (del fetch previo) con base64 nuevos (del input file). Diferenciarlos con `startsWith('data:')` es el patrón correcto.
+
+### Supabase/CDN Image Caching (404 Cache Buster)
+**Issue**: Al previsualizar fotos rotas (no cargadas), el navegador o la CDN cachea el error 404 por largo tiempo (`max-age=3600`). Al subir una foto nueva con la misma URL, el navegador sigue mostrando la imagen rota por la caché.
+
+**Fix**: Usar una función helper `addCacheBuster` en el frontend para añadir un query parameter dinámico (`?t=timestamp`) a las imágenes que provengan del storage externo:
+```typescript
+const addCacheBuster = (url: string | undefined): string => {
+  if (!url) return '';
+  if (url.startsWith('data:')) return url;
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}t=${Date.now()}`;
+};
+```
+
+### CSRF Concurrent Fetching Promise Cache
+**Issue**: Si una página dispara peticiones mutantes (POST/PUT/DELETE) simultáneas sin token CSRF, cada una solicita su propio token. Cada llamada a `/api/csrf-token` invalida el token anterior en el servidor, causando que las primeras peticiones fallen con 403 (Token inválido) tras reintentar.
+
+**Fix**: Cachear el **Promise** del fetch del token CSRF en lugar de solo la cadena de texto del token. Esto colapsa las llamadas paralelas en una sola solicitud real:
+```typescript
+let csrfTokenPromise: Promise<string> | null = null;
+let csrfToken: string | null = null;
+
+async function fetchCSRFToken(): Promise<string> {
+  if (csrfToken) return csrfToken;
+  if (csrfTokenPromise) return csrfTokenPromise;
+  
+  csrfTokenPromise = (async () => {
+    try {
+      const response = await fetch('/api/csrf-token', { credentials: 'include' });
+      // parse and save
+    } finally {
+      csrfTokenPromise = null;
+    }
+  })();
+  return csrfTokenPromise;
+}
+```
+
+### Transaction Batching for Bulk Imports (Excel)
+**Issue**: Insertar registros secuencialmente desde el frontend mediante bucles de peticiones POST individuales (ej. 200 filas de Excel) congela la UI por latencia, puede agotar el pool de conexiones de base de datos de Render/Supabase, y carece de atomicidad (fallas parciales).
+
+**Fix**: Consolidar la importación masiva en un único endpoint transaccional `/api/import/confirm` en el servidor usando `prisma.$transaction`. Esto reduce el tiempo de confirmación a menos de 500ms y asegura consistencia atómica.
+
