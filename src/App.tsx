@@ -50,6 +50,8 @@ export default function App() {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [session, setSession] = useState<SessionUser | null>(null);
   const [markupRate, setMarkupRate] = useState<number>(0.35);
+  const [isImporting, setIsImporting] = useState(false);
+  const [progress, setProgress] = useState(0);
   
   // Navigation state for deep-linking to specific records
   const [vehicleEditId, setVehicleEditId] = useState<string | null>(null);
@@ -450,116 +452,56 @@ export default function App() {
   const handleImportConfirmed = async (newFullDbState: DatabaseState) => {
     if (!dbState) return;
 
-    let errores = 0;
-    let guardados = 0;
+    setIsImporting(true);
+    setProgress(10);
+
+    let progressInterval: any;
 
     try {
-      // Mapas de IDs locales (generados por ExcelImporter) → IDs reales del backend
-      const clienteIdMap = new Map<string, string>();
-      const proyectoIdMap = new Map<string, string>();
-      // Nota: colaboradorId siempre null en importación Excel — asignar manualmente desde Dashboard
+      // Simulate progress progression up to 90%
+      progressInterval = setInterval(() => {
+        setProgress(prev => {
+          if (prev >= 90) return prev;
+          return prev + Math.floor(Math.random() * 8) + 2;
+        });
+      }, 250);
 
-      // 1. Clientes: verificar por NOMBRE (no por ID local que cambia cada importación)
-      const clientesPorNombre = new Map(dbState.clientes.map(c => [c.nombre.toLowerCase().trim(), c.id]));
-      for (const cliente of newFullDbState.clientes) {
-        const nombreNorm = cliente.nombre.toLowerCase().trim();
-        if (clientesPorNombre.has(nombreNorm)) {
-          clienteIdMap.set(cliente.id, clientesPorNombre.get(nombreNorm)!);
+      const resData = await authFetchJSON('/api/import/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientes: newFullDbState.clientes,
+          proyectos: newFullDbState.proyectos,
+          registros: newFullDbState.registros
+        })
+      });
+
+      clearInterval(progressInterval);
+
+      if (resData.success && resData.data) {
+        setProgress(100);
+        // Short delay so the user sees completion state
+        await new Promise(resolve => setTimeout(resolve, 800));
+
+        const { guardados, errores } = resData.data;
+        // Recargar datos desde Supabase
+        await fetchDbState();
+
+        if (errores === 0) {
+          alert(`✅ Importación exitosa: ${guardados} registros guardados en Supabase.`);
         } else {
-          try {
-            const res = await authFetchJSON('/api/clientes', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ nombre: cliente.nombre, codigo: cliente.codigo })
-            });
-            if (res.success && res.data) {
-              clienteIdMap.set(cliente.id, res.data.id);
-              clientesPorNombre.set(nombreNorm, res.data.id);
-            }
-          } catch { errores++; clienteIdMap.set(cliente.id, cliente.id); }
+          alert(`⚠️ Importación parcial: ${guardados} guardados, ${errores} errores. Revisá los datos e intentá de nuevo.`);
         }
-      }
-
-      // 2. Proyectos: verificar por NOMBRE + clienteId real
-      const proyectosPorNombre = new Map(
-        dbState.proyectos.map(p => [`${p.clienteId}::${p.nombre.toLowerCase().trim()}`, p.id])
-      );
-      for (const proyecto of newFullDbState.proyectos) {
-        const realClienteId = clienteIdMap.get(proyecto.clienteId) || proyecto.clienteId;
-        const keyNombre = `${realClienteId}::${proyecto.nombre.toLowerCase().trim()}`;
-        if (proyectosPorNombre.has(keyNombre)) {
-          proyectoIdMap.set(proyecto.id, proyectosPorNombre.get(keyNombre)!);
-        } else {
-          try {
-            const res = await authFetchJSON('/api/proyectos', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ clienteId: realClienteId, nombre: proyecto.nombre, estado: proyecto.estado, fechaInicio: proyecto.fechaInicio })
-            });
-            if (res.success && res.data) {
-              proyectoIdMap.set(proyecto.id, res.data.id);
-              proyectosPorNombre.set(keyNombre, res.data.id);
-            }
-          } catch { errores++; proyectoIdMap.set(proyecto.id, proyecto.id); }
-        }
-      }
-
-      // 4. Registros nuevos: sustituir IDs locales por IDs reales
-      const registrosExistentes = new Set(dbState.registros.map(r => r.id));
-      const registrosNuevos = newFullDbState.registros.filter(r => !registrosExistentes.has(r.id));
-
-      for (const item of registrosNuevos) {
-        const realClienteId = clienteIdMap.get(item.clienteId) || item.clienteId;
-        const realProyectoId = proyectoIdMap.get(item.proyectoId) || item.proyectoId;
-        // Resolver colaboradorId: siempre null en importación Excel
-        // Los colaboradores se asignan manualmente desde el Dashboard
-        const realColaboradorId = null;
-
-        // Validación defensiva: saltar registros con datos inválidos que Zod rechazaría
-        if (!realClienteId || !realProyectoId) { errores++; continue; }
-        if (!item.fecha || !/^\d{4}-\d{2}-\d{2}$/.test(item.fecha)) { errores++; continue; }
-        if (!item.cantidad || item.cantidad <= 0) { errores++; continue; }
-        if (!item.precioUnitario || item.precioUnitario <= 0) { errores++; continue; }
-        const total = item.total > 0 ? item.total : item.cantidad * item.precioUnitario;
-        if (total <= 0) { errores++; continue; }
-        // Normalizar concepto — el backend acepta solo 'MO', 'Insumo', 'Otros'
-        const conceptoValido: 'MO' | 'Insumo' | 'Otros' =
-          item.concepto === 'MO' ? 'MO' : item.concepto === 'Insumo' ? 'Insumo' : 'Otros';
-
-        try {
-          await authFetchJSON('/api/registros', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              clienteId: realClienteId,
-              proyectoId: realProyectoId,
-              fecha: item.fecha,
-              concepto: conceptoValido,
-              descripcion: item.descripcion || 'Sin descripción',
-              colaboradorId: realColaboradorId,
-              hsInicio: item.hsInicio,
-              hsFin: item.hsFin,
-              hsTotal: item.hsTotal,
-              cantidad: item.cantidad,
-              precioUnitario: item.precioUnitario,
-              total
-            })
-          });
-          guardados++;
-        } catch { errores++; }
-      }
-
-      // 4. Recargar datos desde Supabase
-      await fetchDbState();
-
-      if (errores === 0) {
-        alert(`✅ Importación exitosa: ${guardados} registros guardados en Supabase.`);
+        setActiveTab('dashboard');
       } else {
-        alert(`⚠️ Importación parcial: ${guardados} guardados, ${errores} errores. Revisá los datos e intentá de nuevo.`);
+        throw new Error(resData.error?.message || 'Error en la respuesta del servidor');
       }
-      setActiveTab('dashboard');
     } catch (err: any) {
-      alert('Error al importar: ' + (err.message || ''));
+      if (progressInterval) clearInterval(progressInterval);
+      alert('Error al importar: ' + (err.message || 'Error desconocido'));
+    } finally {
+      setIsImporting(false);
+      setProgress(0);
     }
   };
 
@@ -832,6 +774,78 @@ export default function App() {
           )}
         </AnimatePresence>
       </main>
+      
+      {/* Glassmorphic Loader Overlay */}
+      <AnimatePresence>
+        {isImporting && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#020617]/85 backdrop-blur-xl select-none"
+          >
+            <div className="absolute inset-0 bg-gradient-to-tr from-blue-500/10 via-transparent to-indigo-500/10 pointer-events-none" />
+            
+            <motion.div 
+              initial={{ scale: 0.95, y: 15 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: -15 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              className="glass-panel p-8 rounded-3xl flex flex-col items-center gap-6 text-center max-w-sm w-[90%] relative z-10 border border-white/10 shadow-2xl shadow-blue-500/5"
+            >
+              {/* Premium HSL Spinner */}
+              <div className="relative w-20 h-20">
+                {/* Glowing Background Ring */}
+                <div className="absolute inset-0 rounded-full border border-blue-500/20 blur-[2px]" />
+                
+                {/* Animated Inner Spinner */}
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ repeat: Infinity, duration: 1.2, ease: "linear" }}
+                  className="w-full h-full rounded-full border-2 border-transparent border-t-blue-500 border-r-indigo-500"
+                  style={{
+                    filter: 'drop-shadow(0 0 8px rgba(59, 130, 246, 0.5))'
+                  }}
+                />
+
+                {/* Center Core */}
+                <div className="absolute inset-[3px] rounded-full bg-[#020617]/90 flex items-center justify-center border border-white/5">
+                  <span className="font-mono text-xs font-bold text-blue-400">{Math.min(100, Math.round(progress))}%</span>
+                </div>
+              </div>
+
+              {/* Progress and status message */}
+              <div className="w-full space-y-4">
+                <div className="space-y-1.5">
+                  <h3 className="font-sans font-bold text-lg text-white tracking-wide">
+                    Procesando Importación
+                  </h3>
+                  <p className="text-xs text-slate-400 font-medium min-h-[1.5rem] tracking-wide transition-all duration-300">
+                    {progress < 30 && "Validando estructura de datos..."}
+                    {progress >= 30 && progress < 65 && "Procesando transacciones en base de datos..."}
+                    {progress >= 65 && progress < 90 && "Sincronizando información..."}
+                    {progress >= 90 && progress < 100 && "Finalizando tareas de importación..."}
+                    {progress >= 100 && "¡Sincronización exitosa!"}
+                  </p>
+                </div>
+
+                {/* Progress bar */}
+                <div className="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden border border-white/5 relative">
+                  <motion.div
+                    className="h-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 rounded-full"
+                    initial={{ width: '0%' }}
+                    animate={{ width: `${progress}%` }}
+                    transition={{ type: "tween", ease: "easeInOut" }}
+                    style={{
+                      boxShadow: '0 0 10px rgba(59, 130, 246, 0.4)'
+                    }}
+                  />
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
     </ErrorBoundary>
   );

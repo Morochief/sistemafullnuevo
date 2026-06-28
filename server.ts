@@ -830,6 +830,164 @@ app.post('/api/save-state', requireAuth, async (req, res) => {
   }
 });
 
+// Confirm bulk Excel import in a single transaction
+app.post('/api/import/confirm', requireAuth, async (req, res) => {
+  const { clientes, proyectos, registros } = req.body;
+  const clientIp = getClientIp(req);
+  const userPayload = req.user!;
+  
+  if (!Array.isArray(clientes) || !Array.isArray(proyectos) || !Array.isArray(registros)) {
+    return res.status(400).json({
+      success: false,
+      error: { code: 'VALIDATION_ERROR', message: 'Datos de importación inválidos' }
+    } as ApiResponse);
+  }
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Clientes: verify by name
+      const dbClientes = await tx.cliente.findMany({});
+      const clientesPorNombre = new Map(dbClientes.map(c => [c.nombre.toLowerCase().trim(), c.id]));
+      const clienteIdMap = new Map<string, string>();
+      const clienteNombreMap = new Map<string, string>(dbClientes.map(c => [c.id, c.nombre]));
+      
+      for (const c of clientes) {
+        const nombreNorm = c.nombre.toLowerCase().trim();
+        if (clientesPorNombre.has(nombreNorm)) {
+          clienteIdMap.set(c.id, clientesPorNombre.get(nombreNorm)!);
+        } else {
+          const created = await tx.cliente.create({
+            data: {
+              id: generateId('cli'),
+              nombre: c.nombre.trim(),
+              codigo: c.codigo ? c.codigo.trim() : generateId('cli').substring(0, 8).toUpperCase()
+            }
+          });
+          clienteIdMap.set(c.id, created.id);
+          clientesPorNombre.set(nombreNorm, created.id);
+          clienteNombreMap.set(created.id, created.nombre);
+        }
+      }
+
+      // 2. Proyectos: verify by name + clienteId
+      const dbProyectos = await tx.proyecto.findMany({});
+      const proyectosPorNombre = new Map(dbProyectos.map(p => [`${p.clienteId}::${p.nombre.toLowerCase().trim()}`, p.id]));
+      const proyectoIdMap = new Map<string, string>();
+      const proyectoNombreMap = new Map<string, string>(dbProyectos.map(p => [p.id, p.nombre]));
+
+      for (const p of proyectos) {
+        const realClienteId = clienteIdMap.get(p.clienteId) || p.clienteId;
+        const key = `${realClienteId}::${p.nombre.toLowerCase().trim()}`;
+        if (proyectosPorNombre.has(key)) {
+          proyectoIdMap.set(p.id, proyectosPorNombre.get(key)!);
+        } else {
+          const estadoEnum = p.estado === 'En Proceso' ? 'EN_PROCESO' as const : p.estado === 'Completado' ? 'COMPLETADO' as const : 'PENDIENTE' as const;
+          const created = await tx.proyecto.create({
+            data: {
+              id: generateId('pro'),
+              clienteId: realClienteId,
+              nombre: p.nombre.trim(),
+              estado: estadoEnum,
+              fechaInicio: p.fechaInicio ? new Date(p.fechaInicio) : new Date()
+            }
+          });
+          proyectoIdMap.set(p.id, created.id);
+          proyectosPorNombre.set(key, created.id);
+          proyectoNombreMap.set(created.id, created.nombre);
+        }
+      }
+
+      // 3. Insert all new Records
+      let guardados = 0;
+      let errores = 0;
+      
+      for (const r of registros) {
+        const realClienteId = clienteIdMap.get(r.clienteId) || r.clienteId;
+        const realProyectoId = proyectoIdMap.get(r.proyectoId) || r.proyectoId;
+        
+        const realClienteNombre = clienteNombreMap.get(realClienteId);
+        const realProyectoNombre = proyectoNombreMap.get(realProyectoId);
+        
+        if (!realClienteId || !realProyectoId || !realClienteNombre || !realProyectoNombre) { 
+          errores++; 
+          continue; 
+        }
+        if (!r.fecha || !/^\d{4}-\d{2}-\d{2}$/.test(r.fecha)) { errores++; continue; }
+        if (!r.cantidad || r.cantidad <= 0) { errores++; continue; }
+        if (!r.precioUnitario || r.precioUnitario <= 0) { errores++; continue; }
+        
+        const total = r.total > 0 ? r.total : r.cantidad * r.precioUnitario;
+        
+        // Map concepto to Prisma Concepto enum
+        const conceptoRaw = (r.concepto || '').trim().toLowerCase();
+        let conceptoValido: 'MO' | 'INSUMO' | 'VEHICULO';
+        if (conceptoRaw === 'mo' || conceptoRaw === 'mano de obra') {
+          conceptoValido = 'MO';
+        } else if (conceptoRaw === 'insumo' || conceptoRaw === 'insumos' || conceptoRaw === 'materiales') {
+          conceptoValido = 'INSUMO';
+        } else if (conceptoRaw === 'vehiculo' || conceptoRaw === 'vehículo' || conceptoRaw === 'km') {
+          conceptoValido = 'VEHICULO';
+        } else {
+          // Fallback to INSUMO if unknown/other
+          conceptoValido = 'INSUMO';
+        }
+
+        await tx.registro.create({
+          data: {
+            id: generateId('reg'),
+            clienteId: realClienteId,
+            clienteNombre: realClienteNombre,
+            proyectoId: realProyectoId,
+            proyectoNombre: realProyectoNombre,
+            fecha: new Date(r.fecha),
+            concepto: conceptoValido,
+            descripcion: r.descripcion || 'Sin descripción',
+            colaboradorId: null,
+            hsInicio: r.hsInicio || null,
+            hsFin: r.hsFin || null,
+            hsTotal: r.hsTotal || null,
+            cantidad: new Decimal(r.cantidad),
+            precioUnitario: new Decimal(r.precioUnitario),
+            total: new Decimal(total),
+            origen: 'EXCEL',
+            fechaImportacion: new Date()
+          }
+        });
+        guardados++;
+      }
+
+      return { guardados, errores };
+    });
+
+    auditLog({
+      usuario: userPayload.usuario,
+      accion: 'confirm_bulk_import',
+      recurso: '/api/import/confirm',
+      resultado: 'success',
+      ip: clientIp
+    });
+
+    res.json({
+      success: true,
+      data: result,
+      message: `Importación procesada: ${result.guardados} guardados, ${result.errores} errores.`
+    } as ApiResponse);
+  } catch (error: any) {
+    logger.error('Error in bulk import transaction:', error);
+    auditLog({
+      usuario: userPayload.usuario,
+      accion: 'confirm_bulk_import',
+      recurso: '/api/import/confirm',
+      resultado: 'failure',
+      ip: clientIp
+    });
+    res.status(500).json({
+      success: false,
+      error: { code: 'IMPORT_ERROR', message: 'Error al procesar la transacción de importación masiva' }
+    } as ApiResponse);
+  }
+});
+
 // Add a single registro manually
 app.post('/api/registros', requireAuth, async (req, res) => {
   const validation = validateSchema(RegistroItemSchema, req.body);
