@@ -20,6 +20,9 @@ import {
   User as UserIcon,
   ClipboardList,
   Folder,
+  CheckCircle2,
+  AlertTriangle,
+  X,
 } from 'lucide-react';
 import { DatabaseState, Cliente, Proyecto, Colaborador } from './types.ts';
 import { authFetch, authFetchJSON, clearCSRFToken } from './authFetch.ts';
@@ -52,6 +55,14 @@ export default function App() {
   const [markupRate, setMarkupRate] = useState<number>(0.35);
   const [isImporting, setIsImporting] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null);
+
+  const showNotification = (message: string, type: 'success' | 'warning' | 'error' = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => {
+      setNotification(null);
+    }, 4500);
+  };
   
   // Navigation state for deep-linking to specific records
   const [vehicleEditId, setVehicleEditId] = useState<string | null>(null);
@@ -488,9 +499,9 @@ export default function App() {
         await fetchDbState();
 
         if (errores === 0) {
-          alert(`✅ Importación exitosa: ${guardados} registros guardados en Supabase.`);
+          showNotification(`Importación exitosa: ${guardados} registros guardados en Supabase.`, 'success');
         } else {
-          alert(`⚠️ Importación parcial: ${guardados} guardados, ${errores} errores. Revisá los datos e intentá de nuevo.`);
+          showNotification(`Importación parcial: ${guardados} guardados, ${errores} errores.`, 'warning');
         }
         setActiveTab('dashboard');
       } else {
@@ -498,7 +509,7 @@ export default function App() {
       }
     } catch (err: any) {
       if (progressInterval) clearInterval(progressInterval);
-      alert('Error al importar: ' + (err.message || 'Error desconocido'));
+      showNotification('Error al importar: ' + (err.message || 'Error desconocido'), 'error');
     } finally {
       setIsImporting(false);
       setProgress(0);
@@ -725,6 +736,7 @@ export default function App() {
                 currentDb={dbState}
                 onImportConfirmed={handleImportConfirmed}
                 onCancel={() => setActiveTab('dashboard')}
+                isSaving={isImporting}
               />
             </motion.div>
           )}
@@ -843,6 +855,38 @@ export default function App() {
                 </div>
               </div>
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {notification && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className="fixed top-6 right-6 z-[105] flex items-center gap-3 px-5 py-4 rounded-2xl border backdrop-blur-xl shadow-2xl max-w-sm w-[90%]"
+            style={{
+              backgroundColor: notification.type === 'success' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+              borderColor: notification.type === 'success' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)',
+              color: '#ffffff'
+            }}
+          >
+            {notification.type === 'success' ? (
+              <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+            ) : (
+              <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />
+            )}
+            <div className="flex-1 text-sm font-semibold tracking-wide">
+              {notification.message}
+            </div>
+            <button
+              onClick={() => setNotification(null)}
+              className="text-slate-400 hover:text-white transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </motion.div>
         )}
       </AnimatePresence>

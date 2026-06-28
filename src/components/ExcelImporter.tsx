@@ -26,9 +26,10 @@ interface ExcelImporterProps {
   currentDb: DatabaseState;
   onImportConfirmed: (updatedDb: DatabaseState) => void;
   onCancel: () => void;
+  isSaving?: boolean;
 }
 
-export default function ExcelImporter({ currentDb, onImportConfirmed, onCancel }: ExcelImporterProps) {
+export default function ExcelImporter({ currentDb, onImportConfirmed, onCancel, isSaving = false }: ExcelImporterProps) {
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -587,10 +588,15 @@ export default function ExcelImporter({ currentDb, onImportConfirmed, onCancel }
                 </button>
                 <button
                   onClick={handleFinalProcessAndSave}
-                  className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 font-semibold text-sm text-white shadow-lg shadow-blue-500/25 cursor-pointer"
+                  disabled={isSaving}
+                  className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 font-semibold text-sm text-white shadow-lg shadow-blue-500/25 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Procesar e Insertar en Base de Datos</span>
+                  {isSaving ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4" />
+                  )}
+                  <span>{isSaving ? 'Guardando...' : 'Procesar e Insertar en Base de Datos'}</span>
                 </button>
               </div>
             </div>
