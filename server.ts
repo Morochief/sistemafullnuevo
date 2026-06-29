@@ -571,6 +571,29 @@ function parseExcelDate(excelDate: any): string {
   return new Date().toISOString().substring(0, 10);
 }
 
+// Helper to convert sheet time to HH:MM format
+function formatExcelTime(val: any): string {
+  if (val === undefined || val === null || val === '') return '';
+  
+  const valStr = String(val).trim();
+  if (valStr.includes(':')) {
+    // If it has seconds like 08:00:00, truncate to 08:00
+    return valStr.substring(0, 5);
+  }
+  
+  const num = parseFloat(valStr);
+  if (!isNaN(num) && num >= 0 && num < 1) {
+    const totalMinutes = Math.round(num * 24 * 60);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    const hh = String(hours).padStart(2, '0');
+    const mm = String(minutes).padStart(2, '0');
+    return `${hh}:${mm}`;
+  }
+  
+  return valStr;
+}
+
 // Generate unique IDs
 function generateId(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).substring(2, 11)}`;
@@ -1784,8 +1807,8 @@ app.post('/api/import-excel', requireAuth, uploadSingleExcel, async (req, res) =
         descripcion,
         colaboradorId: targetColaborador ? targetColaborador.id : undefined,
         colaboradorNombre: targetColaborador ? targetColaborador.nombre : undefined,
-        hsInicio: hsInicio ? String(hsInicio) : undefined,
-        hsFin: hsFin ? String(hsFin) : undefined,
+        hsInicio: hsInicio ? formatExcelTime(hsInicio) : undefined,
+        hsFin: hsFin ? formatExcelTime(hsFin) : undefined,
         hsTotal: hsTotal > 0 ? hsTotal : undefined,
         cantidad: cantidad, // Minutes from Excel "Cantidad" column
         precioUnitario: precioUnitario || (targetColaborador ? targetColaborador.tarifaSugerida : 0),
