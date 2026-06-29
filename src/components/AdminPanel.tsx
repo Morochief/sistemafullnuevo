@@ -85,7 +85,7 @@ function AdminSection({ title, icon, description, children, variant = 'default' 
 interface DataCardProps {
   title: string;
   subtitle?: string;
-  badge?: { label: string; color: 'emerald' | 'cyan' | 'pink' | 'blue' };
+  badge?: { label: string; color: 'emerald' | 'cyan' | 'pink' | 'blue' | 'rose' };
   icon?: React.ReactNode;
   children?: React.ReactNode;
 }
@@ -95,7 +95,8 @@ function DataCard({ title, subtitle, badge, icon, children }: DataCardProps) {
     emerald: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20',
     cyan: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/20',
     pink: 'bg-pink-500/10 text-pink-300 border-pink-500/20',
-    blue: 'bg-blue-500/10 text-blue-300 border-blue-500/20'
+    blue: 'bg-blue-500/10 text-blue-300 border-blue-500/20',
+    rose: 'bg-rose-500/10 text-rose-300 border-rose-500/20'
   };
 
   return (
