@@ -306,3 +306,12 @@ const c = await prisma.colaborador.findFirst({ where: { nombre: { contains: 'Rod
 await prisma.usuario.update({ where: { username: 'rodrigo' }, data: { colaboradorId: c.id }});
 ```
 **Sintoma:** "No tenes permiso para registrar horas de otros colaboradores" (403) aunque el usuario sea el colaborador correcto. "Sin Vinculacion" en la lista de usuarios aunque se haya seleccionado un colaborador en el formulario de edicion.
+
+### 20. Verificar Integracion con git diff Antes de Commiteary
+**Problema:** Los scripts de Node que modifican archivos grandes (3000+ lineas) usando reemplazos de texto exactos fallan silenciosamente. El script se ejecuta, no tira error, pero el archivo no se modifica porque el patron de busqueda no coincide exactamente (diferencia de whitespace, CRLF vs LF, encoding, o escape de caracteres). El desarrollador commitea y sube el cambio, pero el archivo nunca se actualizo.
+**Regla:** Despues de ejecutar cualquier script de modificacion de archivos via Node:
+1. Verificar con `git diff --stat` que los archivos esperados aparezcan como modificados
+2. Verificar con `git diff HEAD -- <archivo>` que los cambios especificos esten
+3. Si no hay diff, el script fallo silenciosamente. Usar `findstr /N "texto-esperado"` (Windows) para confirmar que el patron existe en el archivo
+4. Alternativa: en vez de scripts con replace(), usar herramientas AST o edicion directa con edit_file
+**Sintoma:** Se sube un commit con "feat: add X to component" pero el componente en produccion no tiene X. El diff del commit muestra 0 cambios en el componente esperado.
