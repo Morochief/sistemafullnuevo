@@ -64,8 +64,53 @@ export function mapUiRolToDb(rol: string): Rol {
  * Seed initial users into the database if the table is empty.
  * Runs once on server startup.
  */
+async function seedInitialDataIfEmpty(): Promise<void> {
+  try {
+    // 1. Seed Colaboradores if empty
+    const colabCount = await prisma.colaborador.count();
+    if (colabCount === 0) {
+      logger.info('[SEED] Seeding default colaboradores...');
+      const defaultColabs = [
+        { id: 'col_rodrigo', nombre: 'Rodrigo Fernández', rol: 'Operario' },
+        { id: 'col_ricardo', nombre: 'Ricardo Gómez', rol: 'Operario' },
+        { id: 'col_eduardo', nombre: 'Eduardo Martínez', rol: 'Operario' },
+      ];
+      for (const col of defaultColabs) {
+        await prisma.colaborador.create({ data: col });
+      }
+    }
+
+    // 2. Seed Clientes and Projects if empty
+    const clientCount = await prisma.cliente.count();
+    if (clientCount === 0) {
+      logger.info('[SEED] Seeding default client and project...');
+      const defaultClient = await prisma.cliente.create({
+        data: {
+          id: 'cli_general',
+          nombre: 'Cliente General',
+          codigo: 'CLI-GEN'
+        }
+      });
+      await prisma.proyecto.create({
+        data: {
+          id: 'pro_general',
+          clienteId: defaultClient.id,
+          nombre: 'Proyecto General',
+          estado: 'EN_PROCESO',
+          fechaInicio: new Date()
+        }
+      });
+    }
+  } catch (err: any) {
+    logger.error('[SEED] Error seeding data dependencies:', err.message);
+  }
+}
+
 export async function seedUsersIfEmpty(): Promise<void> {
   try {
+    // Run core seed dependencies first
+    await seedInitialDataIfEmpty();
+
     const count = await prisma.usuario.count();
     if (count > 0) {
       logger.info('[AUTH SEED] Users already exist in DB, skipping seed.');
