@@ -587,13 +587,14 @@ function AppInner() {
             {[
               { id: 'dashboard', label: 'Panel', icon: Tv, adminOnly: true },
               { id: 'registro', label: 'Registro', icon: ClipboardList, adminOnly: false },
-              { id: 'misregistros', label: 'Mis Registros', icon: Folder, adminOnly: false, hideForAdmin: true, badge: dbState?.registros.filter(r => {
+              { id: 'misregistros', label: 'Mis Registros', icon: Folder, adminOnly: false, hideForAdmin: true, badge: (dbState?.registros || []).filter(r => {
                 const user = session;
                 if (!user || !user.nombre) return false;
-                const colaborador = dbState?.colaboradores?.find(
+                const colaborador = (dbState?.colaboradores || []).find(
                   col => {
-                    const colName = col.nombre ? col.nombre.toLowerCase() : '';
-                    const userName = user.nombre ? user.nombre.toLowerCase() : '';
+                    if (!col || !col.nombre) return false;
+                    const colName = col.nombre.toLowerCase();
+                    const userName = user.nombre.toLowerCase();
                     return colName.includes(userName) || userName.includes(colName);
                   }
                 );
