@@ -103,3 +103,23 @@ Cuando sea necesario realizar tareas complejas, se delegará en los siguientes r
   1. En el panel de control de **Render**, ir a la sección **Deploys**.
   2. Identificar el último deploy estable y hacer clic en **Rollback** para redesplegar el build anterior exitoso.
 
+
+## 7. Estrategia y Suite de Tests de Integración
+
+Para blindar la lógica de negocio sin sobre-ingeniería (filosofía *Ponytail*), se cuenta con una suite de tests de integración que realiza llamadas HTTP reales usando `supertest` contra la base de datos de desarrollo (sin mockear Prisma).
+
+### Matriz de Cobertura
+| Suite | Flujo | Gap que Cierra |
+| :--- | :--- | :--- |
+| `users-integration.test.ts` | CRUD completo de usuarios con JWT + CSRF | Regresiones en payload (ej: colaboradorId null/undefined) |
+| `auth-integration.test.ts` | Login exitoso/fallido y Logout | Fallas en entrega o limpieza de cookies JWT |
+| `import-integration.test.ts` | Confirmar importación masiva en transacción | Integridad transaccional, errores en conteos de inserción |
+| `vehiculos-integration.test.ts` | Viajes start/stop con fotos base64 | Fallas en subida de fotos a Supabase Storage y validaciones Zod |
+
+### Directrices y Lecciones Aprendidas de Tests
+1. **Aislamiento del Listener:** El inicio del servidor en `server.ts` está condicionado a `process.env.NODE_ENV !== 'test'`. Esto permite exportar `app` y que `supertest` realice peticiones sin causar conflictos de puertos ocupados.
+2. **Ambiente de Ejecución:** Los tests de API deben correr bajo el ambiente de Node puro. Se debe incluir la directiva `// @vitest-environment node` en la cabecera del archivo de pruebas para evitar colisiones con variables globales del navegador simuladas por `jsdom`.
+3. **Gestión de Timeouts:** Las pruebas que involucren criptografía (hasheo de contraseñas con bcrypt en creación) o llamadas de red externas reales (subida de fotos de odómetro a Supabase Storage) deben tener un timeout extendido (mínimo `15000`ms a `20000`ms) para evitar falsos negativos por latencia.
+4. **Limpieza en Cascada (Cleanup):** Al finalizar los tests de integración (`afterAll`), se debe realizar el borrado en cascada respetando las restricciones de llave foránea (Foreign Keys) de Supabase (ej: primero eliminar registros, luego proyectos, luego el cliente temporal).
+
+
