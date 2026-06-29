@@ -31,7 +31,9 @@ import {
   generateToken,
   optionalAuth,
   seedUsersIfEmpty,
-  hashPassword as hashPwd
+  hashPassword as hashPwd,
+  mapDbRolToUi,
+  mapUiRolToDb
 } from './server-auth.ts';
 import { 
   LoginSchema,
@@ -555,7 +557,7 @@ app.get('/api/users', requireAuth, requireAdmin, async (req, res) => {
       username: u.username,
       nombre: u.nombre,
       email: u.email,
-      rol: u.rol,
+      rol: mapDbRolToUi(u.rol),
       colaboradorId: u.colaboradorId,
       activo: u.activo,
       createdAt: u.createdAt
@@ -629,15 +631,16 @@ app.post('/api/users', requireAuth, requireAdmin, authLimiter, async (req, res) 
       }
     }
 
-    // Hash password and create user
+    // Hash password and create user using database Rol enum
     const passwordHash = await hashPwd(password);
+    const dbRol = mapUiRolToDb(rol);
     const newUser = await prisma.usuario.create({
       data: {
         username: username.toLowerCase().trim(),
         nombre: nombre.trim(),
         email: email ? email.trim() : null,
         passwordHash,
-        rol,
+        rol: dbRol,
         colaboradorId: colaboradorId || null,
         activo: true
       }
@@ -657,7 +660,7 @@ app.post('/api/users', requireAuth, requireAdmin, authLimiter, async (req, res) 
         id: newUser.id,
         username: newUser.username,
         nombre: newUser.nombre,
-        rol: newUser.rol,
+        rol: mapDbRolToUi(newUser.rol),
         colaboradorId: newUser.colaboradorId
       }
     });

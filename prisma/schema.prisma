@@ -171,7 +171,7 @@ model Usuario {
   nombre         String   @db.VarChar(100)
   passwordHash   String   @map("password_hash")
   email          String?  @unique @db.VarChar(255)
-  rol            String   @default("Operario") @db.VarChar(30)
+  rol            Rol      @default(OPERADOR)
   colaboradorId  String?  @map("colaborador_id") @db.VarChar(50)
   activo         Boolean  @default(true)
   createdAt      DateTime @default(now()) @map("created_at")

@@ -39,6 +39,27 @@ if (!JWT_SECRET || JWT_SECRET === 'CHANGE_THIS_IN_PRODUCTION_aFull_2026_Secret_K
   );
 }
 
+import { Rol } from '@prisma/client';
+
+/**
+ * Helper to map DB Rol enum to UI string
+ */
+export function mapDbRolToUi(rol: Rol): 'Admin' | 'Operario' | 'Visor' {
+  if (rol === Rol.ADMIN) return 'Admin';
+  if (rol === Rol.VISOR) return 'Visor';
+  return 'Operario';
+}
+
+/**
+ * Helper to map UI string to DB Rol enum
+ */
+export function mapUiRolToDb(rol: string): Rol {
+  const clean = String(rol).toLowerCase();
+  if (clean === 'admin') return Rol.ADMIN;
+  if (clean === 'visor') return Rol.VISOR;
+  return Rol.OPERADOR;
+}
+
 /**
  * Seed initial users into the database if the table is empty.
  * Runs once on server startup.
@@ -54,10 +75,10 @@ export async function seedUsersIfEmpty(): Promise<void> {
     logger.info('[AUTH SEED] No users found — seeding initial users...');
 
     const initialUsers = [
-      { username: 'admin', nombre: 'Administrador', rol: 'Admin', password: 'admin123', colaboradorId: null },
-      { username: 'rodrigo', nombre: 'Rodrigo', rol: 'Técnico', password: 'rodrigo123', colaboradorId: 'col_kdsnf4jzk' },
-      { username: 'ricardo', nombre: 'Ricardo', rol: 'Operario', password: 'ricardo123', colaboradorId: 'col_mdtahyyln' },
-      { username: 'eduardo', nombre: 'Eduardo', rol: 'Operario', password: 'eduardo123', colaboradorId: 'col_y7j6hif9t' },
+      { username: 'admin', nombre: 'Administrador', dbRol: Rol.ADMIN, password: 'admin123', colaboradorId: null },
+      { username: 'rodrigo', nombre: 'Rodrigo', dbRol: Rol.OPERADOR, password: 'rodrigo123', colaboradorId: 'col_kdsnf4jzk' },
+      { username: 'ricardo', nombre: 'Ricardo', dbRol: Rol.OPERADOR, password: 'ricardo123', colaboradorId: 'col_mdtahyyln' },
+      { username: 'eduardo', nombre: 'Eduardo', dbRol: Rol.OPERADOR, password: 'eduardo123', colaboradorId: 'col_y7j6hif9t' },
     ];
 
     for (const u of initialUsers) {
@@ -67,13 +88,13 @@ export async function seedUsersIfEmpty(): Promise<void> {
         data: {
           username: u.username,
           nombre: u.nombre,
-          rol: u.rol,
+          rol: u.dbRol,
           passwordHash,
           colaboradorId: u.colaboradorId,
           activo: true,
         }
       });
-      logger.info(`[AUTH SEED] Created user: ${u.username} (${u.rol})`);
+      logger.info(`[AUTH SEED] Created user: ${u.username} (${u.dbRol})`);
     }
 
     logger.info('[AUTH SEED] Seed complete.');
@@ -145,7 +166,7 @@ export async function authenticateUser(usuario: string, password: string): Promi
     return {
       usuario: user.username,
       nombre: user.nombre,
-      rol: user.rol,
+      rol: mapDbRolToUi(user.rol),
       colaboradorId: user.colaboradorId ?? undefined,
     };
   } catch (err: any) {
