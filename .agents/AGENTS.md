@@ -124,6 +124,18 @@ Cuando sea necesario realizar tareas complejas, se delegará en los siguientes *
 - **Regla:** Para que la web sea instalable como App nativa en móviles y PC, debe proveer un archivo `manifest.json` enlazado en `index.html` con iconos cuadrados en PNG (mínimo de 192px y 512px) y registrar un `sw.js` (Service Worker) que controle las solicitudes fetch.
 - **Solución:** El Service Worker no debe almacenar en caché solicitudes mutativas (`POST`, `PUT`, `DELETE`) ni llamadas a APIs de bases de datos/IA externas. Se debe validar de forma explícita: `if (event.request.method !== 'GET') return;` para evitar romper las validaciones transaccionales CSRF o la autenticación HttpOnly.
 
+### K. Prohibición de require() Dinámico en Módulos ESM
+- **Regla:** En ambientes compilados bajo ESM puro (`type: "module"` en `package.json`), el uso de `require('modulo')` está estrictamente prohibido y causa un crash crítico en tiempo de ejecución.
+- **Solución:** Utilizar siempre imports estáticos al inicio del archivo (ej: `import crypto from 'crypto'`) y evitar importaciones dinámicas inline en los endpoints para mantener la compatibilidad con el agrupador esbuild.
+
+### L. Preservación del Historial en Soft-Deactivations (Proyectos Finalizados)
+- **Regla:** Al deshabilitar lógicamente una entidad de relación (como proyectos con `activo: false`), no se debe filtrar ciegamente la entidad en todos los flujos de la interfaz.
+- **Solución:** Los dropdowns de nuevos registros sí deben ocultar el proyecto inactivo, pero los dropdowns de edición en registros históricos **deben concatenar de forma explícita el proyecto actualmente seleccionado en el registro** (aunque esté inactivo) para evitar crasheos visuales y pérdida de datos al guardar modificaciones.
+
+### M. Ejecución de Prisma CLI en Entornos Locales de Windows
+- **Regla:** El ejecutable `prisma db push` lee directamente el archivo `.env` de la raíz del proyecto y no reconoce de forma automática archivos `.env.local` de desarrollo.
+- **Solución:** Para realizar migraciones y pushes seguros localmente sin alterar el archivo `.env` global de producción, se deben inyectar las variables DATABASE_URL y DIRECT_URL en el comando del shell antes de la llamada (ej. en PowerShell: `$env:DATABASE_URL="..."; npx prisma db push`).
+
 
 
 ## 7. Estrategia y Suite de Tests de Integración
