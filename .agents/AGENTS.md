@@ -324,3 +324,12 @@ await prisma.usuario.update({ where: { username: 'rodrigo' }, data: { colaborado
 3. Despues de ejecutar, verificar con `git diff` que el archivo cambio
 4. Alternativa mas segura: leer el archivo, buscar el contenido real con `c.includes('texto')`, y solo entonces reemplazar
 **Sintoma:** El commit muestra pocos cambios (ej: 1 linea) cuando deberia mostrar muchos. La funcionalidad nueva no aparece en produccion aunque el codigo se haya deployado.
+
+### 22. CRLF vs LF en Reemplazos de Texto
+**Problema:** Los scripts de Node que buscan texto en archivos usando `c.replace('texto', 'nuevo')` fallan cuando el archivo tiene saltos de linea CRLF (`\r\n`, Windows) y el patron de busqueda usa LF (`\n`, Unix). El string literal en el script no coincide con el contenido real del archivo aunque se vean identicos en pantalla.
+**Regla:** 
+1. Verificar con `JSON.stringify(textoDelArchivo)` que los saltos de linea coinciden
+2. Usar `c.indexOf('texto')` primero para confirmar que el patron existe ANTES de hacer el replace
+3. Si el indexOf encuentra el texto pero el replace no funciona, el problema es CRLF vs LF
+4. Solucion: buscar con `contains` (no sensible a CRLF) o normalizar el archivo primero con `c.replace(/\r\n/g, '\n')`
+**Sintoma:** El script devuelve "Pattern not found" aunque el texto exista en el archivo. El commit muestra menos cambios de los esperados.
