@@ -291,3 +291,18 @@ Basado en la experiencia de agregar el subsistema de Marcaciones:
 - Para arreglar: usar un script .mjs (no inline -e) que lea y escriba con encoding explícito UTF-8.
 - Prevenir: Usar `row['Descripci\\u00f3n']` en vez del caracter literal, o definir los nombres de columna en una constante al inicio del archivo.
 **Sintoma:** Al importar Excel, todas las descripciones aparecen como "Sin descripciÃ³n" aunque el Excel tenga descripciones reales.
+
+### 19. Vinculacion Usuario-Colaborador: IDs Huérfanos despues de db push
+**Problema:** El seed de usuarios asigna `colaboradorId` basado en `prisma.colaborador.findFirst({ where: { nombre: { contains: searchName } } })`. Si los colaboradores se recrearon (ej: despues de `prisma db push --accept-data-loss` o un clear de DB), los IDs generados en el seed NO coinciden con los IDs reales de los colaboradores en la DB. El usuario queda vinculado a un ID que no existe.
+**Regla:** Despues de cualquier operacion que pueda cambiar IDs en la DB (`db push`, `clear`, restore), verificar las vinculaciones:
+```
+const users = await prisma.usuario.findMany({ select: { username: true, colaboradorId: true }});
+const cols = await prisma.colaborador.findMany({ select: { id: true, nombre: true }});
+// Verificar que cada colaboradorId de usuario exista en cols
+```
+Si hay IDs huerfanos, re-vincular manualmente:
+```
+const c = await prisma.colaborador.findFirst({ where: { nombre: { contains: 'Rodrigo' } }});
+await prisma.usuario.update({ where: { username: 'rodrigo' }, data: { colaboradorId: c.id }});
+```
+**Sintoma:** "No tenes permiso para registrar horas de otros colaboradores" (403) aunque el usuario sea el colaborador correcto. "Sin Vinculacion" en la lista de usuarios aunque se haya seleccionado un colaborador en el formulario de edicion.
