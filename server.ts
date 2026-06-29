@@ -1012,6 +1012,53 @@ app.put('/api/users/:id', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+app.put('/api/proyectos/:id', requireAuth, requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { nombre, estado, activo } = req.body;
+
+  try {
+    const proyecto = await prisma.proyecto.findUnique({ where: { id } });
+    if (!proyecto) {
+      return res.status(404).json({ success: false, error: { message: 'Proyecto no encontrado' } });
+    }
+
+    const updateData: any = {};
+    if (nombre !== undefined) updateData.nombre = nombre;
+    if (activo !== undefined) updateData.activo = activo;
+    if (estado !== undefined) {
+      if (estado === 'En Proceso') updateData.estado = 'EN_PROCESO';
+      else if (estado === 'Completado') updateData.estado = 'COMPLETADO';
+      else if (estado === 'Pendiente') updateData.estado = 'PENDIENTE';
+    }
+
+    const updated = await prisma.proyecto.update({
+      where: { id },
+      data: updateData
+    });
+
+    auditLog({
+      usuario: (req as any).user?.usuario || 'admin',
+      accion: 'update_proyecto',
+      recurso: `/api/proyectos/${id}`,
+      resultado: 'success',
+      ip: getClientIp(req)
+    });
+
+    res.json({
+      success: true,
+      data: {
+        id: updated.id,
+        nombre: updated.nombre,
+        activo: updated.activo,
+        estado: updated.estado
+      }
+    });
+  } catch (error: any) {
+    logger.error('Error al actualizar proyecto:', error);
+    res.status(500).json({ success: false, error: { message: 'Error interno del servidor' } });
+  }
+});
+
 
 // Helper to convert sheet date to YYYY-MM-DD
 function parseExcelDate(excelDate: any): string {
@@ -1098,7 +1145,8 @@ function convertPrismaToFrontend(prismaData: any): DatabaseState {
       clienteId: p.clienteId,
       nombre: p.nombre,
       estado: mapEstadoProyecto(p.estado),
-      fechaInicio: p.fechaInicio.toISOString().substring(0, 10)
+      fechaInicio: p.fechaInicio.toISOString().substring(0, 10),
+      activo: p.activo
     })),
     colaboradores: prismaData.colaboradores.map((c: any) => ({
       id: c.id,

@@ -617,19 +617,22 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
   const [fecha, setFecha] = useState(new Date().toISOString().substring(0, 10));
 
   const proyectosFiltrados = data.proyectos.filter(
-    p => !selectedClienteId || p.clienteId === selectedClienteId
+    p => (!selectedClienteId || p.clienteId === selectedClienteId) && p.activo !== false
   );
 
   const contextComplete = !!(selectedClienteId && selectedProyectoId);
 
-  // Validate persisted IDs still exist in DB (they may have been deleted)
+  // Validate persisted IDs still exist in DB (they may have been deleted or deactivated)
   useEffect(() => {
     if (data.clientes.length === 0) return; // data not loaded yet
     if (selectedClienteId && !data.clientes.find(c => c.id === selectedClienteId)) {
       setSelectedClienteId('');
       setSelectedProyectoId('');
-    } else if (selectedProyectoId && !data.proyectos.find(p => p.id === selectedProyectoId)) {
-      setSelectedProyectoId('');
+    } else if (selectedProyectoId) {
+      const proj = data.proyectos.find(p => p.id === selectedProyectoId);
+      if (!proj || proj.activo === false) {
+        setSelectedProyectoId('');
+      }
     }
   }, [data.clientes, data.proyectos]);
 

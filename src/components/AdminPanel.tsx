@@ -683,12 +683,18 @@ function ProyectosTab({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editNombre, setEditNombre] = useState('');
   const [editEstado, setEditEstado] = useState<'Pendiente' | 'En Proceso' | 'Completado'>('En Proceso');
+  const [editActivo, setEditActivo] = useState(true);
 
-  const startEdit = (p: Proyecto) => { setEditingId(p.id); setEditNombre(p.nombre); setEditEstado(p.estado); };
+  const startEdit = (p: Proyecto) => { 
+    setEditingId(p.id); 
+    setEditNombre(p.nombre); 
+    setEditEstado(p.estado); 
+    setEditActivo(p.activo !== false);
+  };
   const cancelEdit = () => setEditingId(null);
   const submitEdit = async () => {
     if (!editNombre.trim()) return;
-    await onEditProyecto(editingId!, { nombre: editNombre.trim(), estado: editEstado });
+    await onEditProyecto(editingId!, { nombre: editNombre.trim(), estado: editEstado, activo: editActivo });
     setEditingId(null);
   };
   return (
@@ -762,6 +768,16 @@ function ProyectosTab({
                       <option value="En Proceso">En Proceso</option>
                       <option value="Completado">Completado</option>
                     </select>
+                    <div className="flex items-center gap-2 py-1">
+                      <input 
+                        type="checkbox" 
+                        id="editActivo" 
+                        checked={editActivo} 
+                        onChange={e => setEditActivo(e.target.checked)} 
+                        className="rounded border-white/10 bg-slate-800 text-cyan-600 focus:ring-cyan-500" 
+                      />
+                      <label htmlFor="editActivo" className="text-xs text-slate-300 font-mono cursor-pointer select-none">Proyecto Activo (mostrar en registros)</label>
+                    </div>
                     <div className="flex gap-2">
                       <button onClick={submitEdit} className="flex-1 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold rounded-lg transition-all">Guardar</button>
                       <button onClick={cancelEdit} className="flex-1 py-1.5 bg-white/5 hover:bg-white/10 text-slate-400 text-xs rounded-lg transition-all">Cancelar</button>
@@ -771,7 +787,10 @@ function ProyectosTab({
                   <DataCard
                     title={p.nombre}
                     subtitle={`Cliente: ${client ? client.nombre : 'Desconocido'}`}
-                    badge={{ label: p.estado, color: 'cyan' }}
+                    badge={{ 
+                      label: p.activo === false ? 'Finalizado' : p.estado, 
+                      color: p.activo === false ? 'rose' : 'cyan' 
+                    }}
                     icon={<FolderGit2 className="w-4 h-4" />}
                   >
                     <div className="flex gap-2 mt-2">

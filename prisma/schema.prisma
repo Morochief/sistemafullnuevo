@@ -27,6 +27,7 @@ model Proyecto {
   id           String        @id @db.VarChar(50)
   clienteId    String        @map("cliente_id") @db.VarChar(50)
   nombre       String
+  activo       Boolean       @default(true)
   estado       EstadoProyecto @default(PENDIENTE)
   fechaInicio  DateTime      @map("fecha_inicio")
   createdAt    DateTime      @default(now()) @map("created_at")

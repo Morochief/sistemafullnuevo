@@ -17,6 +17,7 @@ export interface Proyecto {
   presupuesto?: number;
   estado: 'Pendiente' | 'En Proceso' | 'Completado';
   fechaInicio: string;
+  activo?: boolean;
 }
 
 export interface Colaborador {

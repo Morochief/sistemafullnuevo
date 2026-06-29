@@ -234,8 +234,10 @@ function EditModal({
 }: EditModalProps) {
   if (!isOpen || !registro) return null;
 
-  // Filtrar proyectos del mismo cliente
-  const proyectosFiltrados = proyectos.filter(p => p.clienteId === registro.clienteId);
+  // Filtrar proyectos del mismo cliente (solo activos, más el seleccionado por coherencia histórica)
+  const proyectosFiltrados = proyectos.filter(
+    p => p.clienteId === registro.clienteId && (p.activo !== false || p.id === registro.proyectoId)
+  );
 
   return (
     <AnimatePresence>
