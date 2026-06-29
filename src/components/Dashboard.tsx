@@ -5,6 +5,7 @@
 
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { cardVariants, cardTransition } from '../lib/animations.ts';
 import { 
   Briefcase, 
   Users, 

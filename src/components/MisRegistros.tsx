@@ -20,6 +20,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { cardVariants, cardTransition } from '../lib/animations.ts';
 import {
   Calendar,
   Clock,

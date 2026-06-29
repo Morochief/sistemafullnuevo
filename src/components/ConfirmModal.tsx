@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { modalVariants, modalSpring } from '../lib/animations.ts';
 import { AlertTriangle, Info } from 'lucide-react';
 
 interface ConfirmModalProps {

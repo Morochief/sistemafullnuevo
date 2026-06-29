@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { modalVariants, modalSpring } from '../lib/animations.ts';
 import { Camera, X, CheckCircle, Loader, Play } from 'lucide-react';
 import { useNotif } from '../context/NotifContext';
 

@@ -16,6 +16,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, createContext, useContext } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { cardVariants, cardTransition } from '../lib/animations.ts';
 import {
   Play,
   Square,
