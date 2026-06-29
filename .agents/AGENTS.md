@@ -215,3 +215,31 @@ Al primer GET /api/marcacion/config si no existe geocerca, se crea con coordenad
 ### 7. Bundle Hash de Produccion
 **Problema:** Al debuggear errores de produccion, el bundle hash del JS cambia con cada build. Los errores del bundle anterior pueden confundirse con el actual si Render no termino de desplegar.
 **Regla:** Verificar el hash del bundle (index-XXXX.js) en los logs del navegador contra el hash del ultimo build local. Si no coinciden, el deploy no se completo.
+
+### 8. prisma db push para Tablas Nuevas
+**Problema:** Agregar modelos nuevos al schema.prisma y hacer prisma generate NO crea las tablas en la base de datos. prisma generate solo genera el cliente TypeScript. Las tablas en Supabase/PostgreSQL se crean con prisma db push.
+**Regla:** Despues de agregar modelos nuevos al schema:
+1. `npx prisma generate` (cliente local)
+2. `npx prisma db push --accept-data-loss` (crea las tablas en Supabase)
+3. El build script en package.json debe incluir `prisma generate &&` para Render.
+**Sintoma:** "The table public.X does not exist" en produccion. Las queries fallan aunque el schema local este correcto.
+
+### 9. Verificacion de Geocerca (403 FUERA_DE_ZONA)
+**Problema:** El endpoint /api/marcacion/entrada devuelve 403 FUERA_DE_ZONA. Esto NO es un error - el sistema de geocerca esta funcionando. El usuario debe estar fisicamente dentro del radio (100m) del local para marcar.
+**Regla:** Para probar sin estar en el local:
+- Aumentar radioMetros en tabla geocerca_config via DB
+- O desactivar la geocerca (activo = false)
+- O mockear GPS en DevTools del navegador > Sensors > Location
+El sistema RECHAZA marcaciones fuera de zona por diseno.
+
+### 10. Secuencia Completa para Agregar un Nuevo Subsistema
+Basado en la experiencia de agregar el subsistema de Marcaciones:
+1. Schema: Agregar modelos a schema.prisma
+2. prisma generate (cliente local)
+3. prisma db push (tablas en Supabase)
+4. Endpoints: Agregar rutas en server.ts
+5. Build: Verificar que server.mjs se genera sin errores de esbuild
+6. prisma generate en build script (para Render)
+7. Frontend: Componente + integracion
+8. Lecciones: Documentar problemas encontrados en AGENTS.md
+**Errores comunes:** esbuild renombra PrismaClient duplicado, cache de requireAuth con datos stale, tablas no creadas en Supabase, .toLowerCase() sin safe checks.
