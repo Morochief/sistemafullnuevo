@@ -166,14 +166,16 @@ model ViajeActivo {
 }
 
 model Usuario {
-  id           String   @id @default(uuid())
-  username     String   @unique @db.VarChar(50)
-  passwordHash String   @map("password_hash")
-  email        String?  @unique @db.VarChar(255)
-  rol          Rol      @default(OPERADOR)
-  activo       Boolean  @default(true)
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id             String   @id @default(uuid())
+  username       String   @unique @db.VarChar(50)
+  nombre         String   @db.VarChar(100)
+  passwordHash   String   @map("password_hash")
+  email          String?  @unique @db.VarChar(255)
+  rol            String   @default("Operario") @db.VarChar(30)
+  colaboradorId  String?  @map("colaborador_id") @db.VarChar(50)
+  activo         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   @@map("usuarios")
 }

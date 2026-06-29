@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Camera, X, CheckCircle, Loader, Play } from 'lucide-react';
 import { useNotif } from '../context/NotifContext';
 
@@ -98,8 +99,14 @@ export default function ModalIniciarViaje({ onClose, onStart, selectedClienteId,
   };
   
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="bg-slate-800 rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/80 backdrop-blur-md p-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: -10 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+        className="glass-panel rounded-3xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto border border-white/10 shadow-2xl"
+      >
         <h3 className="text-xl font-bold text-white mb-4">Iniciar Viaje</h3>
         
         {/* Checkbox para viaje particular */}
@@ -169,7 +176,7 @@ export default function ModalIniciarViaje({ onClose, onStart, selectedClienteId,
             value={kmManual || extractedKm || ''}
             onChange={(e) => setKmManual(e.target.value)}
             placeholder="Ej: 45623.5"
-            className="w-full bg-slate-700 text-white px-4 py-2 rounded-lg"
+            className="glass-input w-full px-4 py-2.5 rounded-xl text-sm"
           />
         </div>
         
@@ -182,24 +189,28 @@ export default function ModalIniciarViaje({ onClose, onStart, selectedClienteId,
             onChange={(e) => setDescripcion(e.target.value)}
             placeholder="Ej: Visita a cliente..."
             rows={2}
-            className="w-full bg-slate-700 text-white px-4 py-2 rounded-lg"
+            className="glass-input w-full px-4 py-2.5 rounded-xl text-sm resize-none"
           />
         </div>
         
         <div className="flex gap-2">
-          <button type="button" onClick={onClose} className="flex-1 py-2 px-4 bg-slate-700 text-white rounded-lg">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 py-2.5 px-4 border border-white/10 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl text-sm font-semibold transition-all cursor-pointer"
+          >
             Cancelar
           </button>
           <button
             type="button"
             onClick={handleSubmit}
             disabled={!photo || (!kmManual && !extractedKm) || submitting}
-            className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg flex items-center justify-center gap-2 disabled:opacity-50"
+            className="flex-1 py-2.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-500/25 border border-white/10 transition-all cursor-pointer"
           >
             <Play className="w-4 h-4" /> Iniciar
           </button>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

@@ -2,18 +2,21 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  * 
- * Authentication & Authorization Module
+ * Authentication & Authorization Module — v2.0
+ * Now backed by Supabase (via Prisma) instead of hardcoded users.
  */
 
 import jwt, { SignOptions } from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { Request, Response, NextFunction } from 'express';
-import { JWTPayload, User } from './src/types.ts';
+import { JWTPayload } from './src/types.ts';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 // JWT Secret - REQUIRED in .env - NO FALLBACK for security
 const JWT_SECRET = process.env.JWT_SECRET;
 // SECURITY Fix #15: JWT expiry configurable via env. Default '12h' (one work shift)
-// instead of '7d' to limit the window of a stolen token while avoiding annoying logouts.
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '12h';
 
 // SECURITY Phase 2 Fix #6: Environment-aware logger
@@ -36,46 +39,51 @@ if (!JWT_SECRET || JWT_SECRET === 'CHANGE_THIS_IN_PRODUCTION_aFull_2026_Secret_K
   );
 }
 
-// Demo users with hashed passwords
-// In production, these would be in a proper database with unique salts
-const DEMO_USERS: User[] = [
-  {
-    usuario: 'admin',
-    nombre: 'Administrador',
-    rol: 'Admin',
-    // Password: admin123
-    passwordHash: '$2b$10$9G18RkiUzdzmHjbGydo/eeFXjO9OD.z6RzgQAK9JeJhp845Kkg0Im'
-    // Admin: no colaboradorId (can register hours for anyone)
-  },
-  {
-    usuario: 'ricardo',
-    nombre: 'Ricardo',
-    rol: 'Operario',
-    // Password: ricardo123
-    passwordHash: '$2b$10$6ya9KoSOkWcSJvMaRMqV9e1WVkp.ta9jjbJv60NWzHSktrs98ScE.',
-    colaboradorId: 'col_mdtahyyln' // DB: "Richard entrega"
-  },
-  {
-    usuario: 'rodrigo',
-    nombre: 'Rodrigo',
-    rol: 'Técnico',
-    // Password: rodrigo123
-    passwordHash: '$2b$10$tcWnyrzrzIrwRDCdv08Td.8em1BTvH.GGkPUpfkHzsTzVvrpqLtna',
-    colaboradorId: 'col_kdsnf4jzk' // DB: "Rodrigo retiro"
-  },
-  {
-    usuario: 'eduardo',
-    nombre: 'Edu',
-    rol: 'Operario',
-    // Password: eduardo123
-    passwordHash: '$2b$10$DMLZnmntJJRo5edHsV5Hru3xJKMDdAu5rHC/GHxYL4ogG91zEhrLm',
-    colaboradorId: 'col_y7j6hif9t' // DB: "Edu montaje"
+/**
+ * Seed initial users into the database if the table is empty.
+ * Runs once on server startup.
+ */
+export async function seedUsersIfEmpty(): Promise<void> {
+  try {
+    const count = await prisma.usuario.count();
+    if (count > 0) {
+      logger.info('[AUTH SEED] Users already exist in DB, skipping seed.');
+      return;
+    }
+
+    logger.info('[AUTH SEED] No users found — seeding initial users...');
+
+    const initialUsers = [
+      { username: 'admin', nombre: 'Administrador', rol: 'Admin', password: 'admin123', colaboradorId: null },
+      { username: 'rodrigo', nombre: 'Rodrigo', rol: 'Técnico', password: 'rodrigo123', colaboradorId: 'col_kdsnf4jzk' },
+      { username: 'ricardo', nombre: 'Ricardo', rol: 'Operario', password: 'ricardo123', colaboradorId: 'col_mdtahyyln' },
+      { username: 'eduardo', nombre: 'Eduardo', rol: 'Operario', password: 'eduardo123', colaboradorId: 'col_y7j6hif9t' },
+    ];
+
+    for (const u of initialUsers) {
+      const salt = await bcrypt.genSalt(10);
+      const passwordHash = await bcrypt.hash(u.password, salt);
+      await prisma.usuario.create({
+        data: {
+          username: u.username,
+          nombre: u.nombre,
+          rol: u.rol,
+          passwordHash,
+          colaboradorId: u.colaboradorId,
+          activo: true,
+        }
+      });
+      logger.info(`[AUTH SEED] Created user: ${u.username} (${u.rol})`);
+    }
+
+    logger.info('[AUTH SEED] Seed complete.');
+  } catch (err: any) {
+    logger.error('[AUTH SEED] Error seeding users:', err.message);
   }
-];
+}
 
 /**
- * Generate hashed password (for seeding users)
- * Usage: node -e "require('./server-auth.ts').hashPassword('mypassword')"
+ * Generate hashed password
  */
 export async function hashPassword(password: string): Promise<string> {
   const salt = await bcrypt.genSalt(10);
@@ -94,7 +102,7 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
  */
 export function generateToken(payload: Omit<JWTPayload, 'iat' | 'exp'>): string {
   const options: SignOptions = { expiresIn: JWT_EXPIRES_IN as SignOptions['expiresIn'] };
-  return jwt.sign(payload, JWT_SECRET, options);
+  return jwt.sign(payload, JWT_SECRET!, options);
 }
 
 /**
@@ -102,45 +110,67 @@ export function generateToken(payload: Omit<JWTPayload, 'iat' | 'exp'>): string 
  */
 export function verifyToken(token: string): JWTPayload {
   try {
-    return jwt.verify(token, JWT_SECRET) as JWTPayload;
+    return jwt.verify(token, JWT_SECRET!) as JWTPayload;
   } catch (error) {
     throw new Error('Token inválido o expirado');
   }
 }
 
 /**
- * Find user by username
+ * Authenticate user with credentials — reads from Supabase DB
  */
-export function findUserByUsername(usuario: string): User | undefined {
-  return DEMO_USERS.find(u => u.usuario.toLowerCase() === usuario.toLowerCase());
-}
+export async function authenticateUser(usuario: string, password: string): Promise<{
+  usuario: string;
+  nombre: string;
+  rol: string;
+  colaboradorId?: string;
+} | null> {
+  try {
+    const user = await prisma.usuario.findFirst({
+      where: {
+        username: { equals: usuario, mode: 'insensitive' },
+        activo: true,
+      }
+    });
 
-/**
- * Authenticate user with credentials
- */
-export async function authenticateUser(usuario: string, password: string): Promise<User | null> {
-  const user = findUserByUsername(usuario);
-  
-  if (!user) {
+    if (!user) {
+      return null;
+    }
+
+    const isValid = await bcrypt.compare(password, user.passwordHash);
+    if (!isValid) {
+      return null;
+    }
+
+    return {
+      usuario: user.username,
+      nombre: user.nombre,
+      rol: user.rol,
+      colaboradorId: user.colaboradorId ?? undefined,
+    };
+  } catch (err: any) {
+    logger.error('[AUTH] authenticateUser error:', err.message);
     return null;
   }
-  
-  const isValid = await verifyPassword(password, user.passwordHash);
-  
-  return isValid ? user : null;
 }
+
+// Memory cache for user active status checks (prevents DB saturation on every request)
+interface UserCacheEntry {
+  activo: boolean;
+  checkedAt: number;
+}
+const userActiveCache = new Map<string, UserCacheEntry>();
+const CACHE_TTL_MS = 60 * 1000; // 60 seconds
 
 /**
  * Express Middleware: Require Authentication
  * SECURITY Phase 2 Fix #5: Read JWT from httpOnly cookie instead of Authorization header
- * Usage: app.get('/api/protected', requireAuth, handler)
+ * Also verifies user active status on DB (cached for 60s)
  */
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
+export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   try {
-    // SECURITY: Read token from httpOnly cookie (Phase 2 Fix #5)
     const token = req.cookies?.jwt;
     
-    // DETAILED LOGGING: Check if cookie exists
     if (!token) {
       logger.info('[AUTH] REJECTED: Missing JWT cookie on', req.method, req.path);
       return res.status(401).json({
@@ -155,11 +185,40 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     logger.info('[AUTH] Cookie received for', req.method, req.path);
     
     const payload = verifyToken(token);
+    
+    // Check if user is still active in DB
+    const cacheKey = payload.usuario.toLowerCase();
+    const cached = userActiveCache.get(cacheKey);
+    const now = Date.now();
+    
+    let isUserActive = true;
+    
+    if (cached && (now - cached.checkedAt < CACHE_TTL_MS)) {
+      isUserActive = cached.activo;
+    } else {
+      const userFromDb = await prisma.usuario.findFirst({
+        where: {
+          username: { equals: payload.usuario, mode: 'insensitive' }
+        }
+      });
+      isUserActive = userFromDb ? userFromDb.activo : false;
+      userActiveCache.set(cacheKey, { activo: isUserActive, checkedAt: now });
+    }
+    
+    if (!isUserActive) {
+      logger.info('[AUTH] REJECTED: User is inactive or deleted:', payload.usuario);
+      return res.status(401).json({
+        success: false,
+        error: {
+          code: 'INACTIVE_USER',
+          message: 'El usuario ha sido desactivado'
+        }
+      });
+    }
+
     logger.info('[AUTH] Token verified successfully - user:', payload.nombre, 'rol:', payload.rol);
     
-    // Attach user info to request
     (req as any).user = payload;
-    
     next();
   } catch (error: any) {
     logger.info('[AUTH] Token verification failed on', req.method, req.path, '- error:', error.message);
@@ -175,7 +234,6 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 
 /**
  * Express Middleware: Require Admin Role
- * Usage: app.post('/api/admin-only', requireAuth, requireAdmin, handler)
  */
 export function requireAdmin(req: Request, res: Response, next: NextFunction) {
   const user = (req as any).user as JWTPayload;
@@ -204,7 +262,6 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction) {
 /**
  * Express Middleware: Optional Authentication
  * Attaches user if valid token present, but doesn't reject if missing
- * SECURITY Phase 2 Fix #5: Read JWT from httpOnly cookie
  */
 export function optionalAuth(req: Request, res: Response, next: NextFunction) {
   try {

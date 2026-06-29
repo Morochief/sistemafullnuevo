@@ -29,7 +29,9 @@ import {
   requireAdmin, 
   authenticateUser, 
   generateToken,
-  optionalAuth 
+  optionalAuth,
+  seedUsersIfEmpty,
+  hashPassword as hashPwd
 } from './server-auth.ts';
 import { 
   LoginSchema,
@@ -45,7 +47,8 @@ import {
   ViajeStopSchema,
   RegistroVehiculoUpdateSchema,
   RegistroVehiculoPatchSchema,
-  validateSchema 
+  validateSchema,
+  PasswordComplexitySchema
 } from './server-validation.ts';
 import { auditLog, getClientIp } from './server-audit.ts';
 import { prisma } from './src/lib/prisma.ts';
@@ -536,6 +539,188 @@ app.get('/api/auth/me', requireAuth, (req, res) => {
     }
   });
 });
+
+/**
+ * GET /api/users
+ * Returns list of active/inactive users for Admin panel. Excludes passwordHash.
+ */
+app.get('/api/users', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const users = await prisma.usuario.findMany({
+      orderBy: { createdAt: 'desc' }
+    });
+    // Strip passwordHash before sending
+    const safeUsers = users.map(u => ({
+      id: u.id,
+      username: u.username,
+      nombre: u.nombre,
+      email: u.email,
+      rol: u.rol,
+      colaboradorId: u.colaboradorId,
+      activo: u.activo,
+      createdAt: u.createdAt
+    }));
+    return res.json({
+      success: true,
+      data: safeUsers
+    });
+  } catch (err: any) {
+    logger.error('Error fetching users:', err);
+    return res.status(500).json({
+      success: false,
+      error: { message: 'Error al obtener usuarios' }
+    });
+  }
+});
+
+/**
+ * POST /api/users
+ * Creates a new user with validated password complexity. Admin-only.
+ */
+app.post('/api/users', requireAuth, requireAdmin, authLimiter, async (req, res) => {
+  const { username, nombre, email, password, rol, colaboradorId } = req.body;
+
+  if (!username || !nombre || !password || !rol) {
+    return res.status(400).json({
+      success: false,
+      error: { message: 'Datos obligatorios incompletos' }
+    });
+  }
+
+  // Validate role
+  if (!['Admin', 'Operario', 'Visor'].includes(rol)) {
+    return res.status(400).json({
+      success: false,
+      error: { message: 'Rol inválido. Debe ser Admin, Operario o Visor' }
+    });
+  }
+
+  // Validate password complexity
+  const pwdValidation = PasswordComplexitySchema.safeParse(password);
+  if (!pwdValidation.success) {
+    return res.status(400).json({
+      success: false,
+      error: { message: pwdValidation.error.errors[0].message }
+    });
+  }
+
+  try {
+    // Check if username already exists
+    const existingUser = await prisma.usuario.findFirst({
+      where: { username: { equals: username, mode: 'insensitive' } }
+    });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'El nombre de usuario ya está registrado' }
+      });
+    }
+
+    // Check if colaboradorId is already linked to another active user
+    if (colaboradorId) {
+      const linkedUser = await prisma.usuario.findFirst({
+        where: { colaboradorId, activo: true }
+      });
+      if (linkedUser) {
+        return res.status(400).json({
+          success: false,
+          error: { message: 'Este colaborador ya tiene una cuenta activa vinculada' }
+        });
+      }
+    }
+
+    // Hash password and create user
+    const passwordHash = await hashPwd(password);
+    const newUser = await prisma.usuario.create({
+      data: {
+        username: username.toLowerCase().trim(),
+        nombre: nombre.trim(),
+        email: email ? email.trim() : null,
+        passwordHash,
+        rol,
+        colaboradorId: colaboradorId || null,
+        activo: true
+      }
+    });
+
+    auditLog({
+      usuario: (req as any).user?.usuario || 'admin',
+      accion: 'create_user',
+      recurso: `/api/users/${newUser.id}`,
+      resultado: 'success',
+      ip: getClientIp(req)
+    });
+
+    return res.status(201).json({
+      success: true,
+      data: {
+        id: newUser.id,
+        username: newUser.username,
+        nombre: newUser.nombre,
+        rol: newUser.rol,
+        colaboradorId: newUser.colaboradorId
+      }
+    });
+  } catch (err: any) {
+    logger.error('Error creating user:', err);
+    return res.status(500).json({
+      success: false,
+      error: { message: 'Error al crear usuario' }
+    });
+  }
+});
+
+/**
+ * DELETE /api/users/:id
+ * Toggles a user's active status (soft delete / toggle). Admin-only.
+ */
+app.delete('/api/users/:id', requireAuth, requireAdmin, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const user = await prisma.usuario.findUnique({ where: { id } });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: { message: 'Usuario no encontrado' }
+      });
+    }
+
+    // Prevent disabling the admin you are currently logged in with
+    if (user.username.toLowerCase() === (req as any).user?.usuario?.toLowerCase()) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'No puedes desactivar tu propio usuario en sesión' }
+      });
+    }
+
+    const updatedUser = await prisma.usuario.update({
+      where: { id },
+      data: { activo: !user.activo }
+    });
+
+    auditLog({
+      usuario: (req as any).user?.usuario || 'admin',
+      accion: updatedUser.activo ? 'activate_user' : 'deactivate_user',
+      recurso: `/api/users/${id}`,
+      resultado: 'success',
+      ip: getClientIp(req)
+    });
+
+    return res.json({
+      success: true,
+      message: updatedUser.activo ? 'Usuario activado con éxito' : 'Usuario desactivado con éxito',
+      data: { activo: updatedUser.activo }
+    });
+  } catch (err: any) {
+    logger.error('Error updating user active status:', err);
+    return res.status(500).json({
+      success: false,
+      error: { message: 'Error al actualizar estado del usuario' }
+    });
+  }
+});
+
 
 // Helper to convert sheet date to YYYY-MM-DD
 function parseExcelDate(excelDate: any): string {
@@ -3376,8 +3561,10 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  app.listen(PORT, '0.0.0.0', async () => {
     logger.info(`[Sistema aFull] Server running securely on http://localhost:${PORT}`);
+    // Auto-seed initial users into DB if table is empty
+    await seedUsersIfEmpty();
   });
 }
 

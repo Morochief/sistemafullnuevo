@@ -27,6 +27,7 @@ import { DatabaseState, Cliente, Proyecto, Colaborador, RegistroItem } from '../
 import VehiculosAdminView from './VehiculosAdminView.tsx';
 import ConfirmModal from './ConfirmModal.tsx';
 import { useNotif } from '../context/NotifContext.tsx';
+import UsuariosTab from './UsuariosTab.tsx';
 
 interface AdminPanelProps {
   data: DatabaseState;
@@ -952,7 +953,7 @@ export default function AdminPanel({
 }: AdminPanelProps) {
   const { showToast, requestConfirm } = useNotif();
   // Tabs for the administration panel - usar initialSubTab si existe
-  const [activeSubTab, setActiveSubTab] = useState<'registro' | 'clientes' | 'proyectos' | 'colaboradores' | 'vehiculos'>(
+  const [activeSubTab, setActiveSubTab] = useState<'registro' | 'clientes' | 'proyectos' | 'colaboradores' | 'vehiculos' | 'usuarios'>(
     (initialSubTab as any) || 'registro'
   );
 
@@ -1152,6 +1153,18 @@ export default function AdminPanel({
             <span>Vehículos ({(data.registrosVehiculo || []).length})</span>
           </button>
 
+          <button
+            onClick={() => setActiveSubTab('usuarios')}
+            className={`flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-semibold shrink-0 cursor-pointer transition-all ${
+              activeSubTab === 'usuarios' 
+                ? 'bg-blue-600/20 text-blue-300 border border-blue-500/30 font-bold' 
+                : 'text-slate-400 hover:bg-white/5'
+            }`}
+          >
+            <Users className="w-4 h-4 text-blue-400" />
+            <span>Usuarios de Acceso</span>
+          </button>
+
         </nav>
 
         {/* Global actions - Reset dataset */}
@@ -1263,6 +1276,13 @@ export default function AdminPanel({
               data={data}
               onRefresh={onRefresh || (async () => {})}
               initialEditId={initialVehicleEditId}
+            />
+          )}
+
+          {activeSubTab === 'usuarios' && (
+            <UsuariosTab
+              key="usuarios"
+              colaboradores={data.colaboradores}
             />
           )}
         </AnimatePresence>
