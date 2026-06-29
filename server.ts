@@ -674,12 +674,9 @@ app.post('/api/users', requireAuth, requireAdmin, authLimiter, async (req, res) 
   }
 });
 
-/**
- * DELETE /api/users/:id
- * Toggles a user's active status (soft delete / toggle). Admin-only.
- */
 app.delete('/api/users/:id', requireAuth, requireAdmin, async (req, res) => {
   const { id } = req.params;
+  const hard = req.query.hard === 'true';
 
   try {
     const user = await prisma.usuario.findUnique({ where: { id } });
@@ -690,11 +687,29 @@ app.delete('/api/users/:id', requireAuth, requireAdmin, async (req, res) => {
       });
     }
 
-    // Prevent disabling the admin you are currently logged in with
+    // Prevent disabling/deleting the admin you are currently logged in with
     if (user.username.toLowerCase() === (req as any).user?.usuario?.toLowerCase()) {
       return res.status(400).json({
         success: false,
-        error: { message: 'No puedes desactivar tu propio usuario en sesión' }
+        error: { message: 'No puedes desactivar o eliminar tu propio usuario en sesión' }
+      });
+    }
+
+    if (hard) {
+      await prisma.usuario.delete({ where: { id } });
+      userActiveCache.delete(user.username.toLowerCase());
+
+      auditLog({
+        usuario: (req as any).user?.usuario || 'admin',
+        accion: 'delete_user_hard',
+        recurso: `/api/users/${id}`,
+        resultado: 'success',
+        ip: getClientIp(req)
+      });
+
+      return res.json({
+        success: true,
+        message: 'Usuario eliminado permanentemente de la base de datos'
       });
     }
 
@@ -724,6 +739,122 @@ app.delete('/api/users/:id', requireAuth, requireAdmin, async (req, res) => {
     return res.status(500).json({
       success: false,
       error: { message: 'Error al actualizar estado del usuario' }
+    });
+  }
+});
+
+/**
+ * PUT /api/users/:id
+ * Updates an existing user's profile and optionally updates password. Admin-only.
+ */
+app.put('/api/users/:id', requireAuth, requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { username, nombre, email, password, rol, colaboradorId } = req.body;
+
+  try {
+    const user = await prisma.usuario.findUnique({ where: { id } });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: { message: 'Usuario no encontrado' }
+      });
+    }
+
+    // Prepare update data
+    const updateData: any = {};
+    if (nombre) updateData.nombre = nombre.trim();
+    if (email !== undefined) updateData.email = email ? email.trim() : null;
+    
+    if (rol) {
+      if (!['Admin', 'Operario', 'Visor'].includes(rol)) {
+        return res.status(400).json({
+          success: false,
+          error: { message: 'Rol inválido. Debe ser Admin, Operario o Visor' }
+        });
+      }
+      updateData.rol = mapUiRolToDb(rol);
+    }
+
+    if (username) {
+      const cleanUsername = username.toLowerCase().trim();
+      if (cleanUsername !== user.username) {
+        // Check availability
+        const duplicate = await prisma.usuario.findFirst({
+          where: { username: { equals: cleanUsername, mode: 'insensitive' } }
+        });
+        if (duplicate) {
+          return res.status(400).json({
+            success: false,
+            error: { message: 'El nombre de usuario ya está registrado' }
+          });
+        }
+        updateData.username = cleanUsername;
+      }
+    }
+
+    if (colaboradorId !== undefined) {
+      const targetColaboradorId = colaboradorId || null;
+      if (targetColaboradorId && targetColaboradorId !== user.colaboradorId) {
+        // Ensure no other active user is linked
+        const linked = await prisma.usuario.findFirst({
+          where: { colaboradorId: targetColaboradorId, activo: true, id: { not: id } }
+        });
+        if (linked) {
+          return res.status(400).json({
+            success: false,
+            error: { message: 'Este colaborador ya tiene una cuenta activa vinculada' }
+          });
+        }
+      }
+      updateData.colaboradorId = targetColaboradorId;
+    }
+
+    if (password) {
+      const pwdValidation = PasswordComplexitySchema.safeParse(password);
+      if (!pwdValidation.success) {
+        return res.status(400).json({
+          success: false,
+          error: { message: pwdValidation.error.errors[0].message }
+        });
+      }
+      updateData.passwordHash = await hashPwd(password);
+    }
+
+    const updatedUser = await prisma.usuario.update({
+      where: { id },
+      data: updateData
+    });
+
+    // Invalidate local active check memory cache immediately in case of update
+    userActiveCache.delete(user.username.toLowerCase());
+    if (updateData.username) {
+      userActiveCache.delete(updateData.username);
+    }
+
+    auditLog({
+      usuario: (req as any).user?.usuario || 'admin',
+      accion: 'update_user',
+      recurso: `/api/users/${id}`,
+      resultado: 'success',
+      ip: getClientIp(req)
+    });
+
+    return res.json({
+      success: true,
+      message: 'Usuario actualizado con éxito',
+      data: {
+        id: updatedUser.id,
+        username: updatedUser.username,
+        nombre: updatedUser.nombre,
+        rol: mapDbRolToUi(updatedUser.rol),
+        colaboradorId: updatedUser.colaboradorId
+      }
+    });
+  } catch (err: any) {
+    logger.error('Error updating user:', err);
+    return res.status(500).json({
+      success: false,
+      error: { message: 'Error al actualizar usuario' }
     });
   }
 });
