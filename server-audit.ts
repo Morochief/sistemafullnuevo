@@ -10,6 +10,7 @@
  */
 
 import fs from 'fs';
+import { prisma } from './src/lib/prisma.ts';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
