@@ -69,7 +69,27 @@ Cuando sea necesario realizar tareas complejas, se delegará en los siguientes r
    - **`OPERADOR`**: Registro de horas y control de viajes. No puede ver datos de administración general.
    - **`VISOR`**: Vista de solo lectura. Útil para auditoría y visualización de reportes, sin privilegios de edición o borrado.
 2. **Endpoints de Administración (Admin-Only + rate limited)**:
-   - `GET /api/users`: Retorna lista de cuentas sin contraseñas.
-   - `POST /api/users`: Crea nuevo usuario validando contraseña con `PasswordComplexitySchema`.
-   - `DELETE /api/users/:id`: Toggle de estado `activo` (soft delete) con invalidación inmediata de `userActiveCache`.
+    - `GET /api/users`: Retorna lista de cuentas sin contraseñas.
+    - `POST /api/users`: Crea nuevo usuario validando contraseña con `PasswordComplexitySchema`.
+    - `DELETE /api/users/:id`: Toggle de estado `activo` (soft delete) con invalidación inmediata de `userActiveCache`.
 
+---
+
+## 6. Lecciones Aprendidas & Decisiones de Diseño
+
+### A. Interfaz y Diálogos de Notificación (Eliminación de Nativos)
+- **Regla:** Queda estrictamente prohibido el uso de `alert()` o `confirm()` nativos del navegador.
+- **Solución:** Utilizar el provider global `NotifProvider` y sus métodos `showToast(msg, type)` y `requestConfirm(title, msg, type, callback, confirmText)`.
+- **Estilos:** Toda notificación o modal debe usar el estilo glassmorphic (`glass-panel`, `glass-input`, `glass-select`) y transiciones de muelle (spring) con `motion/react` para mantener una estética premium coherente.
+
+### B. Sincronización de Tipos y Enums (Prisma/PostgreSQL)
+- **Regla:** Cuando se interactúe con enums nativos de base de datos (ej. Rol en la tabla de usuarios), nunca se deben insertar strings libres o realizar conversiones implícitas en crudo en el backend.
+- **Solución:** Implementar funciones helper explícitas de traducción bidireccional (ej. `mapDbRolToUi` y `mapUiRolToDb`) para asegurar que el backend se comunique con la DB usando los tipos exactos de Prisma, evitando crasheos en tiempo de ejecución.
+
+### C. Caché de Sesión de Usuario y Seguridad
+- **Regla:** Al cachear en memoria el estado de actividad de un usuario para proteger endpoints pesados o recurrentes (ej. `requireAuth` con TTL de 60s), cualquier mutación que deshabilite, edite o elimine un usuario debe invalidar inmediatamente la caché.
+- **Solución:** Ejecutar de forma explícita `userActiveCache.delete(username)` en los endpoints de mutación (`PUT`, `DELETE`) para garantizar la revocación inmediata de acceso sin esperar la expiración del TTL.
+
+### D. Filosofía de Desarrollo Minimalista (Ponytail)
+- **Regla:** Seguir la escalera de PonyTail antes de escribir código: YAGNI -> Reutilizar -> Usar stdlib -> Usar APIs nativas -> Usar dependencias ya instaladas -> Escribir el mínimo diff posible.
+- **Seguridad:** No escatimar en validaciones de seguridad (ej. `PasswordComplexitySchema` y sanitización CSRF) bajo el pretexto de simplificar código.
