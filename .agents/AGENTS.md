@@ -27,8 +27,7 @@ Este documento define la base de conocimiento, las reglas de arquitectura y las 
   * En producción (Render/Vercel), las credenciales se inyectan a través del panel de control.
   * **CRITICAL**: El servidor de Express siempre debe cargar `.env.local` antes que `.env` para asegurar que las variables de Supabase estén disponibles localmente.
 * **Puertos por Defecto**:
-  * Servidor Backend: Puerto `3100` (cargado localmente desde `.env.local`).
-  * Puerto `3000` suele ser usado por servicios locales de Docker, o como fallback/puerto en producción.
+  * Servidor Backend: Puerto `3000` por defecto en el código (`process.env.PORT || 3000`), o puerto `3100` si es configurado explícitamente en el archivo `.env.local` mediante la variable `PORT`.
 
 ---
 
@@ -47,7 +46,7 @@ Este documento define la base de conocimiento, las reglas de arquitectura y las 
 
 ## 4. Agentes Especializados (Subagents)
 
-Cuando sea necesario realizar tareas complejas, se delegará en los siguientes roles especializados:
+Cuando sea necesario realizar tareas complejas, se delegará en los siguientes **roles conceptuales de subagentes** (configurando el prompt del sistema de la tarea según corresponda, sin requerir la presencia de archivos físicos en el repositorio):
 
 * **`db-guardian`**: Especializado en Prisma, migraciones seguras y rendimiento de queries de bases de datos.
 * **`ui-auditor`**: Especializado en responsive design, transiciones fluidas de UI (Framer Motion) y optimización de renderizados.
@@ -71,7 +70,9 @@ Cuando sea necesario realizar tareas complejas, se delegará en los siguientes r
 2. **Endpoints de Administración (Admin-Only + rate limited)**:
     - `GET /api/users`: Retorna lista de cuentas sin contraseñas.
     - `POST /api/users`: Crea nuevo usuario validando contraseña con `PasswordComplexitySchema`.
-    - `DELETE /api/users/:id`: Toggle de estado `activo` (soft delete) con invalidación inmediata de `userActiveCache`.
+    - `PUT /api/users/:id`: Actualiza perfiles de usuario, roles y/o contraseñas (hasheándolas con bcrypt).
+    - `DELETE /api/users/:id`: Desactiva/activa una cuenta (soft toggle) e invalida inmediatamente la sesión en caché. Admite el parámetro query `?hard=true` para realizar una eliminación física permanente en la base de datos.
+
 
 ---
 
