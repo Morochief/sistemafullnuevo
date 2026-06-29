@@ -93,3 +93,13 @@ Cuando sea necesario realizar tareas complejas, se delegará en los siguientes r
 ### D. Filosofía de Desarrollo Minimalista (Ponytail)
 - **Regla:** Seguir la escalera de PonyTail antes de escribir código: YAGNI -> Reutilizar -> Usar stdlib -> Usar APIs nativas -> Usar dependencias ya instaladas -> Escribir el mínimo diff posible.
 - **Seguridad:** No escatimar en validaciones de seguridad (ej. `PasswordComplexitySchema` y sanitización CSRF) bajo el pretexto de simplificar código.
+
+### E. Procedimiento de Rollback en Despliegues (Producción)
+- **Fallo en Base de Datos / Migración Fallida:**
+  1. Restaurar backup de la base de datos Supabase desde el panel de control.
+  2. Revertir el esquema y migrations locales corriendo `git checkout <commit_anterior_estable> prisma/`.
+  3. Ejecutar `npx prisma db push` para asegurar que el motor de la base de datos vuelva a estar en sincronía con el esquema anterior estable.
+- **Fallo en Servidor Backend:**
+  1. En el panel de control de **Render**, ir a la sección **Deploys**.
+  2. Identificar el último deploy estable y hacer clic en **Rollback** para redesplegar el build anterior exitoso.
+

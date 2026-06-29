@@ -387,6 +387,30 @@ app.use('/api', (req, res, next) => {
 
 /**
  * GET /api/csrf-token
+/**
+ * GET /api/health
+ * Simple health check for Render to monitor app and Supabase DB status.
+ */
+app.get('/api/health', async (req, res) => {
+  try {
+    // Quick ping query to database to verify connection
+    await prisma.$queryRaw`SELECT 1`;
+    return res.status(200).json({
+      status: 'healthy',
+      database: 'connected',
+      timestamp: new Date().toISOString()
+    });
+  } catch (err: any) {
+    logger.error('[HEALTH CHECK] Database connection failed:', err.message);
+    return res.status(500).json({
+      status: 'unhealthy',
+      database: 'disconnected',
+      error: err.message
+    });
+  }
+});
+
+/**
  * SECURITY Phase 2 Fix #3: Generate CSRF token
  */
 app.get('/api/csrf-token', (req, res) => {
