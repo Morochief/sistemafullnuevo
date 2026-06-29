@@ -957,6 +957,9 @@ app.post('/api/import/confirm', requireAuth, async (req, res) => {
       }
 
       return { guardados, errores };
+    }, {
+      maxWait: 20000, // 20 seconds to acquire connection
+      timeout: 60000  // 60 seconds execution limit
     });
 
     auditLog({
