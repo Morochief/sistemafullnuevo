@@ -461,12 +461,12 @@ app.post('/api/marcacion/salida', requireAuth, async (req, res) => {
 });
 
 app.get('/api/marcacion/mis-marcaciones', requireAuth, async (req, res) => {
-  const up = req.user;
+  const up = req.user!;
   const { desde, hasta, limite } = req.query;
   try {
-    const w = { usuario: up.usuario };
-    if (desde || hasta) { w.timestamp = {}; if(desde) w.timestamp.gte = new Date(desde); if(hasta) w.timestamp.lte = new Date(hasta); }
-    const ms = await prisma.marcacion.findMany({ where: w, orderBy: { timestamp: 'desc' }, take: limite ? parseInt(limite) : 50 });
+    const w: any = { usuario: up.usuario };
+    if (desde || hasta) { w.timestamp = {}; if(desde) w.timestamp.gte = new Date(desde as string); if(hasta) w.timestamp.lte = new Date(hasta as string); }
+    const ms = await prisma.marcacion.findMany({ where: w, orderBy: { timestamp: 'desc' }, take: limite ? parseInt(limite as string) : 50 });
     res.json({ success: true, data: ms.map(m => ({ id: m.id, tipo: m.tipo, timestamp: m.timestamp, lat: m.lat ? Number(m.lat) : null, lng: m.lng ? Number(m.lng) : null, precision: m.precision ? Number(m.precision) : null })) });
   } catch (e) { res.status(500).json({ success: false, error: { code: 'READ_ERROR', message: 'Error' } }); }
 });
@@ -474,10 +474,10 @@ app.get('/api/marcacion/mis-marcaciones', requireAuth, async (req, res) => {
 app.get('/api/marcacion/admin/timeline', requireAuth, requireAdmin, async (req, res) => {
   const { usuario, desde, hasta, limite } = req.query;
   try {
-    const w = {};
+    const w: any = {};
     if (usuario) w.usuario = usuario;
-    if (desde || hasta) { w.timestamp = {}; if(desde) w.timestamp.gte = new Date(desde); if(hasta) w.timestamp.lte = new Date(hasta); }
-    const ms = await prisma.marcacion.findMany({ where: w, orderBy: { timestamp: 'desc' }, take: limite ? parseInt(limite) : 200 });
+    if (desde || hasta) { w.timestamp = {}; if(desde) w.timestamp.gte = new Date(desde as string); if(hasta) w.timestamp.lte = new Date(hasta as string); }
+    const ms = await prisma.marcacion.findMany({ where: w, orderBy: { timestamp: 'desc' }, take: limite ? parseInt(limite as string) : 200 });
     const ips = {}; const ds = {};
     for (const m of ms) { if(!ips[m.usuario]) ips[m.usuario]=new Set(); if(!ds[m.usuario]) ds[m.usuario]=new Set(); if(m.ip) ips[m.usuario].add(m.ip); if(m.dispositivoHash) ds[m.usuario].add(m.dispositivoHash); }
     res.json({ success: true, data: ms.map(m => ({ id: m.id, usuario: m.usuario, tipo: m.tipo, timestamp: m.timestamp, lat: m.lat ? Number(m.lat) : null, lng: m.lng ? Number(m.lng) : null, ip: m.ip, dispositivoHash: m.dispositivoHash, origen: m.origen, alertas: [...(ips[m.usuario]?.size>1?['MULTIPLES_IPS']:[]), ...(ds[m.usuario]?.size>1?['MULTIPLES_DISPOSITIVOS']:[])] })) });

@@ -243,6 +243,9 @@ export async function authenticateUser(usuario: string, password: string): Promi
 // Memory cache for user active status checks (prevents DB saturation on every request)
 export interface UserCacheEntry {
   activo: boolean;
+  nombre: string;
+  rol: 'Admin' | 'Operario' | 'Visor';
+  colaboradorId: string | null;
   checkedAt: number;
 }
 export const userActiveCache = new Map<string, UserCacheEntry>();
@@ -277,26 +280,52 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     const cached = userActiveCache.get(cacheKey);
     const now = Date.now();
     
-    let isUserActive = true;
+    let userDetails: Omit<UserCacheEntry, 'checkedAt'>;
     
     if (cached && (now - cached.checkedAt < CACHE_TTL_MS)) {
-      isUserActive = cached.activo;
+      userDetails = {
+        activo: cached.activo,
+        nombre: cached.nombre,
+        rol: cached.rol,
+        colaboradorId: cached.colaboradorId
+      };
     } else {
       const userFromDb = await prisma.usuario.findFirst({
         where: {
           username: { equals: payload.usuario, mode: 'insensitive' }
         }
       });
-      isUserActive = userFromDb ? userFromDb.activo : false;
-      userActiveCache.set(cacheKey, { activo: isUserActive, checkedAt: now });
+      
       if (userFromDb) {
-        payload.nombre = userFromDb.nombre;
-        payload.rol = mapDbRolToUi(userFromDb.rol);
-        if (userFromDb.colaboradorId) payload.colaboradorId = userFromDb.colaboradorId;
+        userDetails = {
+          activo: userFromDb.activo,
+          nombre: userFromDb.nombre,
+          rol: mapDbRolToUi(userFromDb.rol),
+          colaboradorId: userFromDb.colaboradorId
+        };
+      } else {
+        userDetails = {
+          activo: false,
+          nombre: payload.nombre || '',
+          rol: payload.rol || 'Operario',
+          colaboradorId: payload.colaboradorId || null
+        };
       }
+      
+      userActiveCache.set(cacheKey, {
+        ...userDetails,
+        checkedAt: now
+      });
     }
     
-    if (!isUserActive) {
+    // Always sync decrypted payload attributes with actual DB cached attributes
+    payload.nombre = userDetails.nombre;
+    payload.rol = userDetails.rol;
+    if (userDetails.colaboradorId) {
+      payload.colaboradorId = userDetails.colaboradorId;
+    }
+
+    if (!userDetails.activo) {
       logger.info('[AUTH] REJECTED: User is inactive or deleted:', payload.usuario);
       return res.status(401).json({
         success: false,
