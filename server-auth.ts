@@ -289,6 +289,11 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       });
       isUserActive = userFromDb ? userFromDb.activo : false;
       userActiveCache.set(cacheKey, { activo: isUserActive, checkedAt: now });
+      if (userFromDb) {
+        payload.nombre = userFromDb.nombre;
+        payload.rol = mapDbRolToUi(userFromDb.rol);
+        if (userFromDb.colaboradorId) payload.colaboradorId = userFromDb.colaboradorId;
+      }
     }
     
     if (!isUserActive) {
