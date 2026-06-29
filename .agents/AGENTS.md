@@ -181,3 +181,37 @@ Al primer GET /api/marcacion/config si no existe geocerca, se crea con coordenad
 - Lat: -25.320588291024226
 - Lng: -57.62418119104182
 - Radio: 100 metros
+
+
+## I. Lecciones Aprendidas — Sesion de Debugging (Junio 2026)
+
+### 1. esbuild + PrismaClient: Una Sola Instancia Compartida
+**Problema:** esbuild renombra la segunda importacion de PrismaClient como "PrismaClient2" en el bundle. Como @prisma/client es externo (--packages=external), el alias no existe en el package, resultando en undefined.
+**Regla:** NUNCA tener dos archivos con su propio `new PrismaClient()`. Crear un unico singleton en `src/lib/prisma.ts` y que todos los archivos importen `{ prisma }` desde ahi. Esto evita que esbuild renombre la clase y que se generen instancias duplicadas.
+**Sintoma:** "Cannot read properties of undefined (reading 'findFirst')" en handlers que usan prisma en el bundle de produccion.
+
+### 2. prisma generate en Build Script
+**Problema:** Render ejecuta npm run build, pero si el script no incluye `prisma generate`, el Prisma Client empaquetado NO tiene los modelos agregados al schema despues de la instalacion inicial.
+**Regla:** El script build en package.json DEBE empezar con `prisma generate && ...` para asegurar que el cliente tenga todos los modelos del schema actual.
+**Sintoma:** `prisma.ModeloNuevo` es undefined en produccion aunque el schema local tenga el modelo.
+
+### 3. Cache de requireAuth con nombre Stale
+**Problema:** La cache de 60s en requireAuth almacena `activo/checkedAt`. Si un JWT se firmo sin `nombre` en el payload (codigo anterior), la cache quedaba con `nombre: undefined` y nunca refrescaba porque el cache hit no volvia a consultar DB.
+**Regla:** Invalidar la cache si `nombre` (u otros campos de sesion) estan vacios: `const cacheStale = cached && !cached.nombre;`. En cache hit con nombre vacio, forzar DB fetch.
+**Sintoma:** `user: undefined` en logs de auth aunque el usuario exista en DB.
+
+### 4. Safe Checks en .toLowerCase()
+**Problema:** Cualquier `.toLowerCase()` sobre `user.nombre`, `col.nombre` o `currentUser.nombre` crashea si el valor es undefined. El safe check `col.nombre ?` no protege si `col` mismo es undefined (como cuando `dbState?.colaboradores` es undefined).
+**Regla:** Siempre usar: `(dbState?.colaboradores || []).find(col => { if (!col?.nombre || !currentUser?.nombre) return false; ... })`. Nunca asumir que un array existe ni que un elemento tiene todas las propiedades.
+
+### 5. ErrorBoundary con Boton de Cerrar Sesion
+**Problema:** Si la app crashea durante la carga inicial (ej: session invalida), el ErrorBoundary atrapa el error pero solo ofrece "Reintentar" o "Recargar Pagina". Ambos llevan al mismo crash. El usuario queda atrapado en un bucle infinito sin poder limpiar su cookie JWT.
+**Regla:** El ErrorBoundary SIEMPRE debe incluir un boton "Cerrar Sesion" que llame a `POST /api/auth/logout` y redirija a /.
+
+### 6. Insercion de Codigo Grande con Node Scripts
+**Problema:** Los Scripts de Node que modifican archivos grandes (3000+ lineas) usando reemplazos de texto exactos fallan silenciosamente por diferencias minimas de whitespace, encoding (CRLF vs LF), o caracteres especiales.
+**Regla:** Para modificaciones grandes, usar scritps .mjs en archivos separados (no -e inline) y verificar con Select-String que los cambios se aplicaron. Mejor aun: hacer los cambios manualmente o con herramientas disenadas para AST en vez de texto plano.
+
+### 7. Bundle Hash de Produccion
+**Problema:** Al debuggear errores de produccion, el bundle hash del JS cambia con cada build. Los errores del bundle anterior pueden confundirse con el actual si Render no termino de desplegar.
+**Regla:** Verificar el hash del bundle (index-XXXX.js) en los logs del navegador contra el hash del ultimo build local. Si no coinciden, el deploy no se completo.
