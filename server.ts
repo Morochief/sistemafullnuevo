@@ -8,7 +8,8 @@ dotenv.config({ path: '.env.local' });
 dotenv.config();
 
 
-import { prisma } from './src/lib/prisma.ts';
+import { PrismaClient } from '@prisma/client';
+const prisma = new PrismaClient();
 import { auditLog, getClientIp } from './server-audit.ts';
 import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
