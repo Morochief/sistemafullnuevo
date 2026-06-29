@@ -588,10 +588,13 @@ function AppInner() {
               { id: 'registro', label: 'Registro', icon: ClipboardList, adminOnly: false },
               { id: 'misregistros', label: 'Mis Registros', icon: Folder, adminOnly: false, hideForAdmin: true, badge: dbState?.registros.filter(r => {
                 const user = session;
-                if (!user) return false;
+                if (!user || !user.nombre) return false;
                 const colaborador = dbState?.colaboradores.find(
-                  col => col.nombre.toLowerCase().includes(user.nombre.toLowerCase()) ||
-                         user.nombre.toLowerCase().includes(col.nombre.toLowerCase())
+                  col => {
+                    const colName = col.nombre ? col.nombre.toLowerCase() : '';
+                    const userName = user.nombre ? user.nombre.toLowerCase() : '';
+                    return colName.includes(userName) || userName.includes(colName);
+                  }
                 );
                 return r.concepto === 'MO' && r.colaboradorId === colaborador?.id && r.fecha === new Date().toISOString().substring(0, 10);
               }).length || 0 },
@@ -643,8 +646,8 @@ function AppInner() {
             <div className="hidden md:flex items-center gap-2 bg-white/5 border border-white/8 rounded-xl px-3 py-1.5">
               <UserIcon className="w-3.5 h-3.5 text-slate-400" />
               <div>
-                <p className="text-[10px] font-bold text-white leading-none">{session.nombre}</p>
-                <p className="text-[8px] font-mono text-slate-500 uppercase tracking-wider">{session.rol}</p>
+                <p className="text-[10px] font-bold text-white leading-none">{session.nombre || session.usuario || 'Usuario'}</p>
+                <p className="text-[8px] font-mono text-slate-500 uppercase tracking-wider">{session.rol || 'Operario'}</p>
               </div>
             </div>
             <motion.button
