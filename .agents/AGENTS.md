@@ -268,3 +268,18 @@ Basado en la experiencia de agregar el subsistema de Marcaciones:
 ### 14. Mobile Metrics Grid
 **Problema:** VehiculosAdminView usa grid-cols-2 en mobile mientras Dashboard usa grid-cols-1. Inconsistencia en grillas de metricas.
 **Regla:** Todas las grillas de metricas: grid-cols-1 sm:grid-cols-2 lg:grid-cols-4.
+
+### 15. prisma db push --accept-data-loss Resetea Valores de Columna
+**Problema:** Ejecutar `prisma db push --accept-data-loss` sobre una tabla existente (ej: `usuarios.rol`) **recrea la columna con su valor default**. Si la columna tiene un default (`@default(OPERADOR)`), todos los registros existentes se sobrescriben con ese default, independientemente del valor que tuvieran antes.
+**Regla:** Despues de cualquier `prisma db push --accept-data-loss`, verificar y restaurar los valores de las columnas afectadas:
+1. Consultar los valores actuales: `prisma.usuario.findMany({ select: { username: true, rol: true } })`
+2. Restaurar los valores correctos via query directa o desde el codigo de seed
+3. El log "Users already exist in DB, skipping seed" significa que el seed NO se ejecuta, incluso si los datos estan corruptos. Considerar agregar un check de integridad que compare los valores esperados vs reales.
+
+### 16. Shared Animation Config y Bottom Nav
+**Problema:** Al crear `src/lib/animations.ts` para estandarizar animaciones, los scripts de Node que modifican App.tsx fallan porque las cadenas de texto exactas (como strings con saltos de linea) no coinciden con el archivo real debido a diferencias de whitespace, CRLF vs LF, o encoding.
+**Regla:** Para modificar App.tsx (+3000 lineas), NO usar scripts de reemplazo de texto. Usar herramientas que operen sobre AST (como jscodeshift) o hacer los cambios a mano. Alternativa: extraer las variantes de motion a un archivo compartido es correcto, pero la integracion debe verificarse con git diff antes de commitear.
+
+### 17. Bottom Nav para Mobile con RBAC
+**Regla:** La navegacion inferior (bottom nav) en mobile debe replicar exactamente las mismas reglas RBAC que la navegacion superior. Si el admin ve ciertos tabs arriba, debe ver los mismos abajo. Usar el mismo array de tabs y el mismo filtro `.filter()` para evitar desincronizacion.
+**Implementacion:** `{tabs.filter(tab => { ... }).map(tab => <button>...)}` — mismo array, mismo filtro, distinto render (iconos verticales vs texto horizontal).
