@@ -423,8 +423,7 @@ app.post('/api/marcacion/entrada', requireAuth, async (req, res) => {
     const ult = await prisma.marcacion.findFirst({ where: { usuario: up.usuario }, orderBy: { timestamp: 'desc' } });
     if (ult && ult.tipo === 'ENTRADA')
       return res.status(409).json({ success: false, error: { code: 'YA_MARCADO', message: 'Ya tenes entrada sin salida' } });
-    const crypto = require('crypto');
-    const dh = crypto.createHash('sha256').update((ua||'')+'|'+(cip||'')).digest('hex');
+    const dh = require('crypto').createHash('sha256').update((ua||'')+'|'+(cip||'')).digest('hex');
     const m = await prisma.marcacion.create({
       data: { id: 'mar'+Math.random().toString(36).substring(2,11), usuario: up.usuario, tipo: 'ENTRADA', lat: new Decimal(lat), lng: new Decimal(lng), precision: precision ? new Decimal(precision) : null, ip: cip, dispositivoHash: dh, userAgent: ua, origen: 'APP' }
     });
@@ -451,8 +450,7 @@ app.post('/api/marcacion/salida', requireAuth, async (req, res) => {
     const ult = await prisma.marcacion.findFirst({ where: { usuario: up.usuario }, orderBy: { timestamp: 'desc' } });
     if (!ult || ult.tipo !== 'ENTRADA')
       return res.status(409).json({ success: false, error: { code: 'SIN_ENTRADA', message: 'Sin entrada registrada' } });
-    const crypto = require('crypto');
-    const dh = crypto.createHash('sha256').update((ua||'')+'|'+(cip||'')).digest('hex');
+    const dh = require('crypto').createHash('sha256').update((ua||'')+'|'+(cip||'')).digest('hex');
     const m = await prisma.marcacion.create({
       data: { id: 'mar'+Math.random().toString(36).substring(2,11), usuario: up.usuario, tipo: 'SALIDA', lat: new Decimal(lat), lng: new Decimal(lng), precision: precision ? new Decimal(precision) : null, ip: cip, dispositivoHash: dh, userAgent: ua, origen: 'APP' }
     });
