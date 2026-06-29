@@ -104,6 +104,15 @@ Cuando sea necesario realizar tareas complejas, se delegará en los siguientes *
   1. En el panel de control de **Render**, ir a la sección **Deploys**.
   2. Identificar el último deploy estable y hacer clic en **Rollback** para redesplegar el build anterior exitoso.
 
+### F. Defensa en Progreso contra Inconsistencias de Base de Datos (Fail-Fast)
+- **Regla:** En flujos asíncronos de dos fases (ej: iniciar viaje -> finalizar viaje), el backend debe validar la existencia física en DB de todas las llaves foráneas en la primera fase (`/api/viaje/start`).
+- **Solución:** Prevenir que el flujo comience con IDs obsoletos o inválidos si el usuario vació tablas. Esto evita que el servidor explote con un error 500 por violaciones de FK (`P2003`) en la segunda fase (`/api/viaje/stop`), la cual es mucho más difícil de corregir reactivamente en el cliente.
+
+### G. Coherencia de Seeding (Sincronización UI-DB)
+- **Regla:** Al programar seeds automáticos por base de datos vacía, nunca se deben crear registros genéricos ficticios (ej: "Cliente General") si el frontend o los fixtures históricos tienen hardcodeados IDs específicos (`cli_1`, `pro_1`).
+- **Solución:** Sintonizar los IDs sembrados de forma unívoca con el `initialData` del negocio original para garantizar que los dropdowns y consultas funcionen perfectamente tras limpiezas de base de datos.
+
+
 
 ## 7. Estrategia y Suite de Tests de Integración
 
