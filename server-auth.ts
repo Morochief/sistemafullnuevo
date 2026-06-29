@@ -75,13 +75,27 @@ export async function seedUsersIfEmpty(): Promise<void> {
     logger.info('[AUTH SEED] No users found — seeding initial users...');
 
     const initialUsers = [
-      { username: 'admin', nombre: 'Administrador', dbRol: Rol.ADMIN, password: 'admin123', colaboradorId: null },
-      { username: 'rodrigo', nombre: 'Rodrigo', dbRol: Rol.OPERADOR, password: 'rodrigo123', colaboradorId: 'col_kdsnf4jzk' },
-      { username: 'ricardo', nombre: 'Ricardo', dbRol: Rol.OPERADOR, password: 'ricardo123', colaboradorId: 'col_mdtahyyln' },
-      { username: 'eduardo', nombre: 'Eduardo', dbRol: Rol.OPERADOR, password: 'eduardo123', colaboradorId: 'col_y7j6hif9t' },
+      { username: 'admin', nombre: 'Administrador', dbRol: Rol.ADMIN, password: 'admin123', searchName: null },
+      { username: 'rodrigo', nombre: 'Rodrigo', dbRol: Rol.OPERADOR, password: 'rodrigo123', searchName: 'Rodrigo' },
+      { username: 'ricardo', nombre: 'Ricardo', dbRol: Rol.OPERADOR, password: 'ricardo123', searchName: 'Ricardo' },
+      { username: 'eduardo', nombre: 'Eduardo', dbRol: Rol.OPERADOR, password: 'eduardo123', searchName: 'Eduardo' },
     ];
 
     for (const u of initialUsers) {
+      let linkedColaboradorId: string | null = null;
+      
+      if (u.searchName) {
+        // Try to find matching colaborador by name
+        const colab = await prisma.colaborador.findFirst({
+          where: {
+            nombre: { contains: u.searchName, mode: 'insensitive' }
+          }
+        });
+        if (colab) {
+          linkedColaboradorId = colab.id;
+        }
+      }
+
       const salt = await bcrypt.genSalt(10);
       const passwordHash = await bcrypt.hash(u.password, salt);
       await prisma.usuario.create({
@@ -90,11 +104,11 @@ export async function seedUsersIfEmpty(): Promise<void> {
           nombre: u.nombre,
           rol: u.dbRol,
           passwordHash,
-          colaboradorId: u.colaboradorId,
+          colaboradorId: linkedColaboradorId,
           activo: true,
         }
       });
-      logger.info(`[AUTH SEED] Created user: ${u.username} (${u.dbRol})`);
+      logger.info(`[AUTH SEED] Created user: ${u.username} (${u.dbRol}) linked to colab: ${linkedColaboradorId || 'none'}`);
     }
 
     logger.info('[AUTH SEED] Seed complete.');
