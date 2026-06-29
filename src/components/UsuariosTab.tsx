@@ -99,9 +99,9 @@ export default function UsuariosTab({ colaboradores }: Props) {
       const payload: any = {
         nombre,
         username,
-        email: email || undefined,
+        email: email || null,
         rol,
-        colaboradorId: colaboradorId || undefined
+        colaboradorId: colaboradorId || null
       };
 
       // Only pass password if it was entered
