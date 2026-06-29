@@ -283,3 +283,11 @@ Basado en la experiencia de agregar el subsistema de Marcaciones:
 ### 17. Bottom Nav para Mobile con RBAC
 **Regla:** La navegacion inferior (bottom nav) en mobile debe replicar exactamente las mismas reglas RBAC que la navegacion superior. Si el admin ve ciertos tabs arriba, debe ver los mismos abajo. Usar el mismo array de tabs y el mismo filtro `.filter()` para evitar desincronizacion.
 **Implementacion:** `{tabs.filter(tab => { ... }).map(tab => <button>...)}` — mismo array, mismo filtro, distinto render (iconos verticales vs texto horizontal).
+
+### 18. Encoding UTF-8 en Strings de Columna Excel
+**Problema:** El caracter `ó` en `Descripción` se guardó como `DescripciÃ³n` en server.ts (UTF-8 bytes `0xC3 0xB3` interpretados como Latin-1). El import de Excel buscaba la columna `'Descripción'` con el string corrupto, nunca encontraba match, y todas las descripciones caían al fallback `'Sin descripción'`.
+**Regla:** En Node.js/TypeScript, NUNCA confiar en que los acentos y caracteres UTF-8 se guarden correctamente al editar archivos via scripts de reemplazo de texto. El encoding del archivo puede ser UTF-8 BOM, UTF-8 sin BOM, o Latin-1, y el editor/script puede interpretarlo incorrectamente.
+- Para verificar: `hexdump -C server.ts | grep -i "descrip"` y buscar los bytes correctos (Ã³ = 0xC3 0xB3 para ó). Si aparecen como 0xC3 0x83 0xC2 0xB3, estan doblemente encodeados.
+- Para arreglar: usar un script .mjs (no inline -e) que lea y escriba con encoding explícito UTF-8.
+- Prevenir: Usar `row['Descripci\\u00f3n']` en vez del caracter literal, o definir los nombres de columna en una constante al inicio del archivo.
+**Sintoma:** Al importar Excel, todas las descripciones aparecen como "Sin descripciÃ³n" aunque el Excel tenga descripciones reales.
