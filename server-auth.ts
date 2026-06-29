@@ -280,7 +280,8 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     
     let userDetails: Omit<UserCacheEntry, 'checkedAt'>;
     
-    if (cached && (now - cached.checkedAt < CACHE_TTL_MS)) {
+    const cacheStale = cached && !cached.nombre;
+    if (cached && (now - cached.checkedAt < CACHE_TTL_MS) && !cacheStale) {
       userDetails = {
         activo: cached.activo,
         nombre: cached.nombre,
