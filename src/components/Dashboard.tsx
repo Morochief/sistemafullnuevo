@@ -700,7 +700,7 @@ export default function Dashboard({ data, onNavigateImport, onDeleteRegistro, on
               }
             </p>
           </div>
-          <div className="h-64 w-full">
+          <div className="h-64 w-full" style={{ minWidth: 0 }}>
             {costTrendData.length === 0 ? (
               <div className="h-full flex items-center justify-center text-slate-500 text-sm font-mono">
                 No hay datos acumulados para graficar
@@ -754,7 +754,7 @@ export default function Dashboard({ data, onNavigateImport, onDeleteRegistro, on
               }
             </p>
           </div>
-          <div className="h-48 w-full relative flex items-center justify-center">
+          <div className="h-48 w-full relative flex items-center justify-center" style={{ minWidth: 0 }}>
             {clientCostData.length === 0 ? (
               <div className="text-slate-500 text-xs font-mono">No hay datos</div>
             ) : (
@@ -827,7 +827,7 @@ export default function Dashboard({ data, onNavigateImport, onDeleteRegistro, on
               }
             </p>
           </div>
-          <div className="h-60 w-full">
+          <div className="h-60 w-full" style={{ minWidth: 0 }}>
             {projectHoursData.length === 0 ? (
               <div className="h-full flex items-center justify-center text-slate-500 text-sm font-mono">
                 No hay horas de Mano de Obra registradas aún
