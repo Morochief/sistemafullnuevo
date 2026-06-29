@@ -1412,7 +1412,7 @@ app.post('/api/import/confirm', requireAuth, async (req, res) => {
             proyectoNombre: realProyectoNombre,
             fecha: new Date(r.fecha),
             concepto: conceptoValido,
-            descripcion: r.descripcion || 'Sin descripciÃ³n',
+            descripcion: r.descripcion || null,
             colaboradorId: null,
             hsInicio: r.hsInicio ? r.hsInicio.substring(0, 5) : null,
             hsFin: r.hsFin ? r.hsFin.substring(0, 5) : null,
@@ -1871,7 +1871,7 @@ app.patch('/api/registros/:id', requireAuth, async (req, res) => {
       success: false,
       error: {
         code: 'VALIDATION_ERROR',
-        message: 'DescripciÃ³n requerida y debe ser un texto vÃ¡lido'
+        message: 'Descripción requerida y debe ser un texto vÃ¡lido'
       }
     } as ApiResponse);
   }
@@ -2141,8 +2141,8 @@ app.post('/api/import-excel', requireAuth, uploadSingleExcel, async (req, res) =
       const projectName = (row['Proyecto'] || row['proyecto'] || row['Proyectos'] || '').toString().trim();
       const fechaRaw = row['Fecha'] || row['fecha'] || row['Fec'];
       const concepto = (row['Concepto'] || row['concepto'] || 'MO').toString().trim().toUpperCase() === 'MO' ? 'MO' : 'Insumo';
-      // IMPORTANTE: Excel puede tener "DescripciÃ³n " con espacio al final
-      const descripcion = (row['DescripciÃ³n'] || row['DescripciÃ³n '] || row['descripcion'] || row['Descripcion'] || '').toString().trim();
+      // IMPORTANTE: Excel puede tener "Descripción " con espacio al final
+      const descripcion = (row['Descripción'] || row['Descripción '] || row['descripcion'] || row['Descripcion'] || '').toString().trim();
       
       const hsInicio = row['Hs Inicio'] || row['hs_inicio'] || row['Inicio'] || '';
       const hsFin = row['Hs Fin'] || row['hs_fin'] || row['Fin'] || '';
