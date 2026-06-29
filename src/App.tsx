@@ -20,9 +20,6 @@ import {
   User as UserIcon,
   ClipboardList,
   Folder,
-  CheckCircle2,
-  AlertTriangle,
-  X,
 } from 'lucide-react';
 import { DatabaseState, Cliente, Proyecto, Colaborador } from './types.ts';
 import { authFetch, authFetchJSON, clearCSRFToken } from './authFetch.ts';
@@ -34,6 +31,7 @@ import Login from './components/Login.tsx';
 import RegistroOperativo from './components/RegistroOperativo.tsx';
 import MisRegistros from './components/MisRegistros.tsx';
 import ErrorBoundary from './components/ErrorBoundary.tsx';
+import { NotifProvider, useNotif } from './context/NotifContext.tsx';
 
 type TabType = 'dashboard' | 'registro' | 'import' | 'admin' | 'reportes' | 'misregistros';
 
@@ -46,7 +44,8 @@ interface SessionUser {
 
 const MARKUP_RATE_KEY = 'afull_markup_rate';
 
-export default function App() {
+function AppInner() {
+  const { showToast } = useNotif();
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [dbState, setDbState] = useState<DatabaseState | null>(null);
   const [loading, setLoading] = useState(true);
@@ -55,14 +54,6 @@ export default function App() {
   const [markupRate, setMarkupRate] = useState<number>(0.35);
   const [isImporting, setIsImporting] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null);
-
-  const showNotification = (message: string, type: 'success' | 'warning' | 'error' = 'success') => {
-    setNotification({ message, type });
-    setTimeout(() => {
-      setNotification(null);
-    }, 4500);
-  };
   
   // Navigation state for deep-linking to specific records
   const [vehicleEditId, setVehicleEditId] = useState<string | null>(null);
@@ -247,7 +238,7 @@ export default function App() {
       });
     } catch (err: any) {
       console.error(err);
-      alert('Error al eliminar registro: ' + (err.message || ''));
+      showToast('Error al eliminar registro: ' + (err.message || ''), 'error');
     }
   };
 
@@ -273,10 +264,10 @@ export default function App() {
       console.error(err);
       // Check if it's an auth error
       if (err.message && (err.message.includes('401') || err.message.includes('autenticación'))) {
-        alert('Sesión expirada. Por favor, vuelve a iniciar sesión.');
+        showToast('Sesión expirada. Por favor, vuelve a iniciar sesión.', 'error');
         handleLogout();
       } else {
-        alert('Error al actualizar registro: ' + (err.message || ''));
+        showToast('Error al actualizar registro: ' + (err.message || ''), 'error');
       }
       return false;
     }
@@ -289,7 +280,7 @@ export default function App() {
       setActiveTab('dashboard');
     } catch (err: any) {
       console.error(err);
-      alert('Error al reiniciar base de datos: ' + (err.message || ''));
+      showToast('Error al reiniciar base de datos: ' + (err.message || ''), 'error');
     }
   };
 
@@ -304,7 +295,7 @@ export default function App() {
       return true;
     } catch (err: any) {
       console.error(err);
-      alert('Error de sincronización con el servidor: ' + (err.message || ''));
+      showToast('Error de sincronización con el servidor: ' + (err.message || ''), 'error');
       return false;
     }
   };
@@ -325,10 +316,10 @@ export default function App() {
     } catch (err: any) {
       // Check if it's an auth error
       if (err.message && (err.message.includes('401') || err.message.includes('autenticación'))) {
-        alert('Sesión expirada. Por favor, vuelve a iniciar sesión.');
+        showToast('Sesión expirada. Por favor, vuelve a iniciar sesión.', 'error');
         handleLogout();
       } else {
-        alert('Error al crear registro: ' + (err.message || ''));
+        showToast('Error al crear registro: ' + (err.message || ''), 'error');
       }
       return false;
     }
@@ -346,7 +337,7 @@ export default function App() {
         setDbState({ ...dbState, clientes: [...dbState.clientes, res.data] });
       }
     } catch (err: any) {
-      alert('Error al crear cliente: ' + (err.message || ''));
+      showToast('Error al crear cliente: ' + (err.message || ''), 'error');
     }
   };
 
@@ -362,7 +353,7 @@ export default function App() {
         setDbState({ ...dbState, clientes: dbState.clientes.map(c => c.id === id ? res.data : c) });
       }
     } catch (err: any) {
-      alert('Error al actualizar cliente: ' + (err.message || ''));
+      showToast('Error al actualizar cliente: ' + (err.message || ''), 'error');
     }
   };
 
@@ -372,7 +363,7 @@ export default function App() {
       await authFetchJSON(`/api/clientes/${id}`, { method: 'DELETE' });
       setDbState({ ...dbState, clientes: dbState.clientes.filter(c => c.id !== id) });
     } catch (err: any) {
-      alert('Error al eliminar cliente: ' + (err.message || ''));
+      showToast('Error al eliminar cliente: ' + (err.message || ''), 'error');
     }
   };
 
@@ -388,7 +379,7 @@ export default function App() {
         setDbState({ ...dbState, proyectos: [...dbState.proyectos, res.data] });
       }
     } catch (err: any) {
-      alert('Error al crear proyecto: ' + (err.message || ''));
+      showToast('Error al crear proyecto: ' + (err.message || ''), 'error');
     }
   };
 
@@ -404,7 +395,7 @@ export default function App() {
         setDbState({ ...dbState, proyectos: dbState.proyectos.map(p => p.id === id ? res.data : p) });
       }
     } catch (err: any) {
-      alert('Error al actualizar proyecto: ' + (err.message || ''));
+      showToast('Error al actualizar proyecto: ' + (err.message || ''), 'error');
     }
   };
 
@@ -414,7 +405,7 @@ export default function App() {
       await authFetchJSON(`/api/proyectos/${id}`, { method: 'DELETE' });
       setDbState({ ...dbState, proyectos: dbState.proyectos.filter(p => p.id !== id) });
     } catch (err: any) {
-      alert('Error al eliminar proyecto: ' + (err.message || ''));
+      showToast('Error al eliminar proyecto: ' + (err.message || ''), 'error');
     }
   };
 
@@ -430,7 +421,7 @@ export default function App() {
         setDbState({ ...dbState, colaboradores: [...dbState.colaboradores, res.data] });
       }
     } catch (err: any) {
-      alert('Error al crear colaborador: ' + (err.message || ''));
+      showToast('Error al crear colaborador: ' + (err.message || ''), 'error');
     }
   };
 
@@ -446,7 +437,7 @@ export default function App() {
         setDbState({ ...dbState, colaboradores: dbState.colaboradores.map(c => c.id === id ? res.data : c) });
       }
     } catch (err: any) {
-      alert('Error al actualizar colaborador: ' + (err.message || ''));
+      showToast('Error al actualizar colaborador: ' + (err.message || ''), 'error');
     }
   };
 
@@ -456,7 +447,7 @@ export default function App() {
       await authFetchJSON(`/api/colaboradores/${id}`, { method: 'DELETE' });
       setDbState({ ...dbState, colaboradores: dbState.colaboradores.filter(c => c.id !== id) });
     } catch (err: any) {
-      alert('Error al eliminar colaborador: ' + (err.message || ''));
+      showToast('Error al eliminar colaborador: ' + (err.message || ''), 'error');
     }
   };
 
@@ -499,9 +490,9 @@ export default function App() {
         await fetchDbState();
 
         if (errores === 0) {
-          showNotification(`Importación exitosa: ${guardados} registros guardados en Supabase.`, 'success');
+          showToast(`Importación exitosa: ${guardados} registros guardados en Supabase.`, 'success');
         } else {
-          showNotification(`Importación parcial: ${guardados} guardados, ${errores} errores.`, 'warning');
+          showToast(`Importación parcial: ${guardados} guardados, ${errores} errores.`, 'warning');
         }
         setActiveTab('dashboard');
       } else {
@@ -509,7 +500,7 @@ export default function App() {
       }
     } catch (err: any) {
       if (progressInterval) clearInterval(progressInterval);
-      showNotification('Error al importar: ' + (err.message || 'Error desconocido'), 'error');
+      showToast('Error al importar: ' + (err.message || 'Error desconocido'), 'error');
     } finally {
       setIsImporting(false);
       setProgress(0);
@@ -564,8 +555,7 @@ export default function App() {
   //  MAIN APP SHELL
   // ================================
   return (
-    <ErrorBoundary>
-      <div className="min-h-screen w-full bg-[#020617] relative pb-16 overflow-x-hidden">
+    <div className="min-h-screen w-full bg-[#020617] relative pb-16 overflow-x-hidden">
       
       {/* Ambient Glow Orbs */}
       <div className="glow-orb-primary -top-32 left-1/4" />
@@ -859,38 +849,16 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Toast Notification */}
-      <AnimatePresence>
-        {notification && (
-          <motion.div
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-6 right-6 z-[105] flex items-center gap-3 px-5 py-4 rounded-2xl border backdrop-blur-xl shadow-2xl max-w-sm w-[90%]"
-            style={{
-              backgroundColor: notification.type === 'success' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
-              borderColor: notification.type === 'success' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)',
-              color: '#ffffff'
-            }}
-          >
-            {notification.type === 'success' ? (
-              <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
-            ) : (
-              <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />
-            )}
-            <div className="flex-1 text-sm font-semibold tracking-wide">
-              {notification.message}
-            </div>
-            <button
-              onClick={() => setNotification(null)}
-              className="text-slate-400 hover:text-white transition-colors cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <NotifProvider>
+        <AppInner />
+      </NotifProvider>
     </ErrorBoundary>
   );
 }

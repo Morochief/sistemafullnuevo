@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Camera, X, CheckCircle, Square, AlertCircle } from 'lucide-react';
+import { useNotif } from '../context/NotifContext';
 
 interface Props {
   onClose: () => void;
@@ -30,6 +31,7 @@ function useCameraCapture() {
 }
 
 export default function ModalFinalizarViaje({ onClose, onFinish, kmInicio, duracionSegundos }: Props) {
+  const { showToast } = useNotif();
   const [kmFinal, setKmFinal] = useState('');
   const [combustibleLitros, setCombustibleLitros] = useState('');
   const [combustibleCosto, setCombustibleCosto] = useState('');
@@ -41,12 +43,12 @@ export default function ModalFinalizarViaje({ onClose, onFinish, kmInicio, durac
   
   const handleSubmit = async () => {
     if (!photo) {
-      alert('Tomá una foto del odómetro final');
+      showToast('Tomá una foto del odómetro final', 'warning');
       return;
     }
     
     if (!kmFinal || !combustibleCosto) {
-      alert('Completá todos los campos obligatorios');
+      showToast('Completá todos los campos obligatorios', 'warning');
       return;
     }
     
@@ -60,12 +62,12 @@ export default function ModalFinalizarViaje({ onClose, onFinish, kmInicio, durac
       });
       
       if (result.alertas && result.alertas.length > 0) {
-        alert(result.alertas[0].mensaje);
+        showToast(result.alertas[0].mensaje, 'warning');
       }
       
       onClose();
     } catch (error) {
-      alert('Error al finalizar viaje');
+      showToast('Error al finalizar viaje', 'error');
       setSubmitting(false);
     }
   };

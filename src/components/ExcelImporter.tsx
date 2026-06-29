@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { DatabaseState, Cliente, Proyecto, Colaborador, RegistroItem } from '../types.ts';
 import { authFetch, authFetchJSON } from '../authFetch.ts'; // SECURITY Phase 2 Fix #5: No getSession
+import { useNotif } from '../context/NotifContext.tsx';
 
 interface ExcelImporterProps {
   currentDb: DatabaseState;
@@ -30,6 +31,7 @@ interface ExcelImporterProps {
 }
 
 export default function ExcelImporter({ currentDb, onImportConfirmed, onCancel, isSaving = false }: ExcelImporterProps) {
+  const { showToast } = useNotif();
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -173,7 +175,7 @@ export default function ExcelImporter({ currentDb, onImportConfirmed, onCancel, 
       }
     } catch (err: any) {
       console.error(err);
-      alert('Enriquecimiento de IA falló: ' + err.message);
+      showToast('Enriquecimiento de IA falló: ' + err.message, 'error');
     } finally {
       setIsAiLoading(false);
     }

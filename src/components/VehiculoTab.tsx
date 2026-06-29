@@ -22,6 +22,7 @@ import Tesseract from 'tesseract.js';
 import { authFetchJSON } from '../authFetch';
 import ModalIniciarViaje from './ModalIniciarViaje';
 import ModalFinalizarViaje from './ModalFinalizarViaje';
+import { useNotif } from '../context/NotifContext';
 
 interface VehiculoTabProps {
   selectedClienteId: string;
@@ -295,12 +296,8 @@ function useViaje({ currentUser }: { currentUser: any }) {
   };
 }
 
-export default function VehiculoTab({ 
-  selectedClienteId, 
-  selectedProyectoId, 
-  currentUser, 
-  contextComplete 
-}: VehiculoTabProps) {
+export default function VehiculoTab({ selectedClienteId, selectedProyectoId, currentUser, contextComplete }: VehiculoTabProps) {
+  const { requestConfirm } = useNotif();
   const {
     viajeActivo,
     horaInicio,
@@ -365,10 +362,14 @@ export default function VehiculoTab({
             <Square className="w-4 h-4" /> Finalizar Viaje
           </button>
           <button
-            onClick={async () => {
-              if (confirm('¿Cancelar el viaje? Los datos no se guardarán.')) {
-                await cancelarViaje();
-              }
+            onClick={() => {
+              requestConfirm(
+                '¿Cancelar viaje?',
+                'Los datos del viaje actual no serán guardados.',
+                'warning',
+                cancelarViaje,
+                'Sí, cancelar'
+              );
             }}
             className="w-full mt-2 py-2 px-6 bg-white/5 hover:bg-white/10 text-slate-400 rounded-xl text-sm flex items-center justify-center gap-2 transition"
           >

@@ -25,6 +25,8 @@ import {
 } from 'lucide-react';
 import { DatabaseState, Cliente, Proyecto, Colaborador, RegistroItem } from '../types.ts';
 import VehiculosAdminView from './VehiculosAdminView.tsx';
+import ConfirmModal from './ConfirmModal.tsx';
+import { useNotif } from '../context/NotifContext.tsx';
 
 interface AdminPanelProps {
   data: DatabaseState;
@@ -546,6 +548,7 @@ function ClientesTab({
   onEditCliente,
   onDeleteCliente,
 }: ClientesTabProps) {
+  const { requestConfirm } = useNotif();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editNombre, setEditNombre] = useState('');
   const [editCodigo, setEditCodigo] = useState('');
@@ -636,7 +639,7 @@ function ClientesTab({
                 >
                   <div className="flex gap-2 mt-2">
                     <button onClick={() => startEdit(c)} className="text-[10px] px-2 py-1 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 rounded-lg border border-blue-500/20 transition-all">Editar</button>
-                    <button onClick={() => { if(confirm(`¿Eliminar cliente "${c.nombre}"? Se eliminarán sus proyectos y registros.`)) onDeleteCliente(c.id); }} className="text-[10px] px-2 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 rounded-lg border border-rose-500/20 transition-all">Eliminar</button>
+                    <button onClick={() => requestConfirm(`¿Eliminar cliente?`, `Se eliminarán todos los proyectos y registros de "${c.nombre}".`, 'danger', () => onDeleteCliente(c.id), 'Eliminar')} className="text-[10px] px-2 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 rounded-lg border border-rose-500/20 transition-all">Eliminar</button>
                   </div>
                 </DataCard>
               )}
@@ -673,6 +676,7 @@ function ProyectosTab({
   onEditProyecto,
   onDeleteProyecto,
 }: ProyectosTabProps) {
+  const { requestConfirm } = useNotif();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editNombre, setEditNombre] = useState('');
   const [editEstado, setEditEstado] = useState<'Pendiente' | 'En Proceso' | 'Completado'>('En Proceso');
@@ -769,7 +773,7 @@ function ProyectosTab({
                   >
                     <div className="flex gap-2 mt-2">
                       <button onClick={() => startEdit(p)} className="text-[10px] px-2 py-1 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 rounded-lg border border-blue-500/20 transition-all">Editar</button>
-                      <button onClick={() => { if(confirm(`¿Eliminar proyecto "${p.nombre}"?`)) onDeleteProyecto(p.id); }} className="text-[10px] px-2 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 rounded-lg border border-rose-500/20 transition-all">Eliminar</button>
+                      <button onClick={() => requestConfirm(`¿Eliminar proyecto?`, `Se eliminarán todos los registros asociados a "${p.nombre}".`, 'danger', () => onDeleteProyecto(p.id), 'Eliminar')} className="text-[10px] px-2 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 rounded-lg border border-rose-500/20 transition-all">Eliminar</button>
                     </div>
                   </DataCard>
                 )}
@@ -811,6 +815,7 @@ function ColaboradoresTab({
   onEditColaborador,
   onDeleteColaborador,
 }: ColaboradoresTabProps) {
+  const { requestConfirm } = useNotif();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editNombre, setEditNombre] = useState('');
   const [editRol, setEditRol] = useState('');
@@ -912,7 +917,7 @@ function ColaboradoresTab({
                   </div>
                   <div className="flex gap-2 mt-2">
                     <button onClick={() => startEdit(c)} className="text-[10px] px-2 py-1 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 rounded-lg border border-blue-500/20 transition-all">Editar</button>
-                    <button onClick={() => { if(confirm(`¿Eliminar colaborador "${c.nombre}"?`)) onDeleteColaborador(c.id); }} className="text-[10px] px-2 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 rounded-lg border border-rose-500/20 transition-all">Eliminar</button>
+                    <button onClick={() => requestConfirm(`¿Eliminar colaborador?`, `Se eliminará a "${c.nombre}" permanentemente.`, 'danger', () => onDeleteColaborador(c.id), 'Eliminar')} className="text-[10px] px-2 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 rounded-lg border border-rose-500/20 transition-all">Eliminar</button>
                   </div>
                 </DataCard>
               )}
@@ -945,6 +950,7 @@ export default function AdminPanel({
   initialVehicleEditId,
   initialSubTab
 }: AdminPanelProps) {
+  const { showToast, requestConfirm } = useNotif();
   // Tabs for the administration panel - usar initialSubTab si existe
   const [activeSubTab, setActiveSubTab] = useState<'registro' | 'clientes' | 'proyectos' | 'colaboradores' | 'vehiculos'>(
     (initialSubTab as any) || 'registro'
@@ -1026,7 +1032,7 @@ export default function AdminPanel({
       // Clear fields
       setDescripcion('');
       setFormError(null);
-      alert('Registro guardado con éxito');
+      showToast('Registro guardado con éxito', 'success');
     } else {
       setFormError('Ocurrió un error al guardar el registro en la base de datos.');
     }
@@ -1044,7 +1050,7 @@ export default function AdminPanel({
     });
     setNewClientName('');
     setNewClientCode('');
-    alert('Cliente creado con éxito');
+    showToast('Cliente creado con éxito', 'success');
   };
 
   // Create project
@@ -1059,7 +1065,7 @@ export default function AdminPanel({
       fechaInicio: new Date().toISOString().substring(0, 10)
     });
     setNewProjName('');
-    alert('Proyecto creado con éxito');
+    showToast('Proyecto creado con éxito', 'success');
   };
 
   // Create Worker
@@ -1075,7 +1081,7 @@ export default function AdminPanel({
     setNewColabName('');
     setNewColabTarif('350');
     setNewColabRol('Operario');
-    alert('Colaborador creado en base de datos');
+    showToast('Colaborador creado en base de datos', 'success');
   };
 
   return (
@@ -1160,9 +1166,12 @@ export default function AdminPanel({
             </p>
             <button
               onClick={() => {
-                if(confirm('¿Seguro que deseas reiniciar los datos al estado de fábrica de la plataforma? Se perderán las planillas cargadas.')) {
-                  onResetDatabase();
-                }
+                requestConfirm(
+                  '¿Restaurar Base de Datos?',
+                  '¿Seguro que deseas reiniciar los datos al estado de fábrica de la plataforma? Se perderán las planillas cargadas.',
+                  'danger',
+                  onResetDatabase
+                );
               }}
               className="w-full py-2 bg-rose-600/10 hover:bg-rose-500/20 border border-rose-500/35 text-rose-300 text-xs font-semibold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2"
             >

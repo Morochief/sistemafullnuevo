@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Camera, X, CheckCircle, Loader, Play } from 'lucide-react';
+import { useNotif } from '../context/NotifContext';
 
 interface Props {
   onClose: () => void;
@@ -54,6 +55,7 @@ function useCameraCapture() {
 }
 
 export default function ModalIniciarViaje({ onClose, onStart, selectedClienteId, selectedProyectoId }: Props) {
+  const { showToast } = useNotif();
   const [descripcion, setDescripcion] = useState('');
   const [kmManual, setKmManual] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -63,18 +65,18 @@ export default function ModalIniciarViaje({ onClose, onStart, selectedClienteId,
   
   const handleSubmit = async () => {
     if (!photo) {
-      alert('Tomá una foto del odómetro');
+      showToast('Tomá una foto del odómetro para continuar', 'warning');
       return;
     }
     
     const kmFinal = kmManual ? parseFloat(kmManual) : extractedKm;
     if (!kmFinal) {
-      alert('Ingresá el kilometraje manualmente');
+      showToast('Ingresá el kilometraje manualmente', 'warning');
       return;
     }
     
     if (!esViajeParticular && (!selectedClienteId || !selectedProyectoId)) {
-      alert('Seleccioná un proyecto o marcá como viaje particular');
+      showToast('Selecioná un proyecto o marcá como viaje particular', 'warning');
       return;
     }
     
@@ -90,7 +92,7 @@ export default function ModalIniciarViaje({ onClose, onStart, selectedClienteId,
       
       onClose();
     } catch (error) {
-      alert('Error al iniciar viaje');
+      showToast('Error al iniciar viaje', 'error');
       setSubmitting(false);
     }
   };
