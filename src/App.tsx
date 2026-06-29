@@ -590,7 +590,7 @@ function AppInner() {
               { id: 'misregistros', label: 'Mis Registros', icon: Folder, adminOnly: false, hideForAdmin: true, badge: dbState?.registros.filter(r => {
                 const user = session;
                 if (!user || !user.nombre) return false;
-                const colaborador = dbState?.colaboradores.find(
+                const colaborador = dbState?.colaboradores?.find(
                   col => {
                     const colName = col.nombre ? col.nombre.toLowerCase() : '';
                     const userName = user.nombre ? user.nombre.toLowerCase() : '';
