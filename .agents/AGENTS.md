@@ -243,3 +243,28 @@ Basado en la experiencia de agregar el subsistema de Marcaciones:
 7. Frontend: Componente + integracion
 8. Lecciones: Documentar problemas encontrados en AGENTS.md
 **Errores comunes:** esbuild renombra PrismaClient duplicado, cache de requireAuth con datos stale, tablas no creadas en Supabase, .toLowerCase() sin safe checks.
+
+### 11. UI/UX Consistency Audit — Hallazgos Clave
+**Problema:** 17 componentes con estilos inconsistentes — botones con 3 radios distintos, inputs con clases inline en vez del sistema glass, labels con 3 formatos de texto diferentes, 4 easing curves distintas para animaciones.
+**Regla:** Antes de tocar UI, auditar todos los componentes revisando:
+1. className patterns: glass-panel, glass-input, glass-select deben usarse en TODOS los componentes
+2. Button radii: estandarizar a rounded-xl para botones
+3. Labels: text-xs font-mono uppercase tracking-wider text-slate-400, un solo formato
+4. Gradients: botones primarios siempre from-blue-600 to-indigo-600, nunca hex hardcodeados
+5. ErrorBoundary: debe seguir el mismo glass design system
+6. Mobile: no usar hidden md:flex para elementos funcionales como botones de accion
+
+### 12. Shared Animation Config
+**Problema:** 4 easing curves diferentes en componentes: duration:0.22, [0.22,1,0.36,1], [0.16,1,0.3,1], y spring(stiffness:300,damping:25).
+**Regla:** Una config compartida:
+- Tabs/paginas: { duration: 0.22 } con opacity:0, y:15
+- Modales: type: spring, stiffness: 300, damping: 25 con scale:0.95, y:20
+- Tarjetas/metricas: { duration: 0.3, ease: [0.22, 1, 0.36, 1] } con opacity:0, y:20
+
+### 13. Bottom Navigation para Mobile
+**Problema:** En mobile, las tabs compiten por espacio en el header con logo, badge de usuario, boton de marcacion y logout.
+**Regla:** Para mobile (<768px), mover navegacion a barra inferior fija (bottom nav) estilo app nativa. Header solo con logo + acciones de usuario.
+
+### 14. Mobile Metrics Grid
+**Problema:** VehiculosAdminView usa grid-cols-2 en mobile mientras Dashboard usa grid-cols-1. Inconsistencia en grillas de metricas.
+**Regla:** Todas las grillas de metricas: grid-cols-1 sm:grid-cols-2 lg:grid-cols-4.
