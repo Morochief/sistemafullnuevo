@@ -315,3 +315,12 @@ await prisma.usuario.update({ where: { username: 'rodrigo' }, data: { colaborado
 3. Si no hay diff, el script fallo silenciosamente. Usar `findstr /N "texto-esperado"` (Windows) para confirmar que el patron existe en el archivo
 4. Alternativa: en vez de scripts con replace(), usar herramientas AST o edicion directa con edit_file
 **Sintoma:** Se sube un commit con "feat: add X to component" pero el componente en produccion no tiene X. El diff del commit muestra 0 cambios en el componente esperado.
+
+### 21. Leer el Archivo Real Antes de Reemplazar Texto
+**Problema:** Al intentar modificar `server-audit.ts` via script de Node, se uso un patron de busqueda basado en como se recordaba el archivo (con `const timestamp = ...` y `logLine`), pero el archivo REAL tenia una implementacion diferente (con `const record = { timestamp: ... }` y `JSON.stringify`). El script se ejecuto sin error, pero no reemplazo nada porque el patron no existia.
+**Regla:** Antes de escribir un script de reemplazo de texto:
+1. `cat server-audit.ts` para ver el contenido EXACTO del archivo (no confiar en la memoria)
+2. Copiar y pegar el texto exacto a buscar (incluyendo saltos de linea y espacios)
+3. Despues de ejecutar, verificar con `git diff` que el archivo cambio
+4. Alternativa mas segura: leer el archivo, buscar el contenido real con `c.includes('texto')`, y solo entonces reemplazar
+**Sintoma:** El commit muestra pocos cambios (ej: 1 linea) cuando deberia mostrar muchos. La funcionalidad nueva no aparece en produccion aunque el codigo se haya deployado.
