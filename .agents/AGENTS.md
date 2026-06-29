@@ -136,6 +136,10 @@ Cuando sea necesario realizar tareas complejas, se delegará en los siguientes *
 - **Regla:** El ejecutable `prisma db push` lee directamente el archivo `.env` de la raíz del proyecto y no reconoce de forma automática archivos `.env.local` de desarrollo.
 - **Solución:** Para realizar migraciones y pushes seguros localmente sin alterar el archivo `.env` global de producción, se deben inyectar las variables DATABASE_URL y DIRECT_URL en el comando del shell antes de la llamada (ej. en PowerShell: `$env:DATABASE_URL="..."; npx prisma db push`).
 
+### N. Mapeo de Variantes de Color en Componentes Visuales Reutilizables
+- **Regla:** Al inyectar dinámicamente nuevas clases de colores o estilos basadas en propiedades de negocio (ej. badge `rose` para estados finalizados), el componente receptor (ej. `DataCard`) debe tener mapeadas explícitamente esas clases en su diccionario de estilos.
+- **Solución:** Si se pasa una variante de color no registrada en el diccionario de Tailwind del componente, las clases correspondientes de borde y fondo se evalúan como `undefined`, provocando que el elemento visual se renderice sin estilos (invisible o desalineado).
+
 
 
 ## 7. Estrategia y Suite de Tests de Integración
