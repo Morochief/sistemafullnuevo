@@ -71,35 +71,41 @@ async function seedInitialDataIfEmpty(): Promise<void> {
     if (colabCount === 0) {
       logger.info('[SEED] Seeding default colaboradores...');
       const defaultColabs = [
-        { id: 'col_rodrigo', nombre: 'Rodrigo Fernández', rol: 'Operario' },
-        { id: 'col_ricardo', nombre: 'Ricardo Gómez', rol: 'Operario' },
-        { id: 'col_eduardo', nombre: 'Eduardo Martínez', rol: 'Operario' },
+        { id: 'col_1', nombre: 'Rodrigo Gómez', tarifaSugerida: 350, rol: 'Técnico de Ploteo' },
+        { id: 'col_2', nombre: 'Kevin Delgado', tarifaSugerida: 400, rol: 'Instalador Senior' },
+        { id: 'col_3', nombre: 'Laura Benítez', tarifaSugerida: 320, rol: 'Ayudante de Taller' }
       ];
       for (const col of defaultColabs) {
         await prisma.colaborador.create({ data: col });
       }
     }
 
-    // 2. Seed Clientes and Projects if empty
+    // 2. Seed Clientes if empty
     const clientCount = await prisma.cliente.count();
     if (clientCount === 0) {
-      logger.info('[SEED] Seeding default client and project...');
-      const defaultClient = await prisma.cliente.create({
-        data: {
-          id: 'cli_general',
-          nombre: 'Cliente General',
-          codigo: 'CLI-GEN'
-        }
-      });
-      await prisma.proyecto.create({
-        data: {
-          id: 'pro_general',
-          clienteId: defaultClient.id,
-          nombre: 'Proyecto General',
-          estado: 'EN_PROCESO',
-          fechaInicio: new Date()
-        }
-      });
+      logger.info('[SEED] Seeding default clientes...');
+      const defaultClients = [
+        { id: 'cli_1', nombre: 'Empresa 1 S.A.', codigo: 'EMP1' },
+        { id: 'cli_2', nombre: 'Estudio Alpha SL', codigo: 'ALPH' },
+        { id: 'cli_3', nombre: 'Distribuidora Global', codigo: 'GLOB' }
+      ];
+      for (const cli of defaultClients) {
+        await prisma.cliente.create({ data: cli });
+      }
+    }
+
+    // 3. Seed Proyectos if empty
+    const projectCount = await prisma.proyecto.count();
+    if (projectCount === 0) {
+      logger.info('[SEED] Seeding default proyectos...');
+      const defaultProjects = [
+        { id: 'pro_1', clienteId: 'cli_1', nombre: 'Ploteo de 2 Freezers Marca XXX', estado: 'EN_PROCESO' as const, fechaInicio: new Date('2026-05-12') },
+        { id: 'pro_2', clienteId: 'cli_2', nombre: 'Cartelería Luminosa Local Central', estado: 'PENDIENTE' as const, fechaInicio: new Date('2026-06-10') },
+        { id: 'pro_3', clienteId: 'cli_1', nombre: 'Mantenimiento de Góndolas Supermercado', estado: 'COMPLETADO' as const, fechaInicio: new Date('2026-05-20') }
+      ];
+      for (const proj of defaultProjects) {
+        await prisma.proyecto.create({ data: proj });
+      }
     }
   } catch (err: any) {
     logger.error('[SEED] Error seeding data dependencies:', err.message);
