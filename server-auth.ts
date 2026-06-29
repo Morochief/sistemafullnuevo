@@ -176,11 +176,11 @@ export async function authenticateUser(usuario: string, password: string): Promi
 }
 
 // Memory cache for user active status checks (prevents DB saturation on every request)
-interface UserCacheEntry {
+export interface UserCacheEntry {
   activo: boolean;
   checkedAt: number;
 }
-const userActiveCache = new Map<string, UserCacheEntry>();
+export const userActiveCache = new Map<string, UserCacheEntry>();
 const CACHE_TTL_MS = 60 * 1000; // 60 seconds
 
 /**

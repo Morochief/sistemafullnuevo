@@ -33,7 +33,8 @@ import {
   seedUsersIfEmpty,
   hashPassword as hashPwd,
   mapDbRolToUi,
-  mapUiRolToDb
+  mapUiRolToDb,
+  userActiveCache
 } from './server-auth.ts';
 import { 
   LoginSchema,
@@ -701,6 +702,9 @@ app.delete('/api/users/:id', requireAuth, requireAdmin, async (req, res) => {
       where: { id },
       data: { activo: !user.activo }
     });
+
+    // Invalidate local active check memory cache immediately
+    userActiveCache.delete(user.username.toLowerCase());
 
     auditLog({
       usuario: (req as any).user?.usuario || 'admin',
