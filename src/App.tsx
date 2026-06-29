@@ -644,7 +644,7 @@ function AppInner() {
           </nav>
 
           {/* Marcaciones UI */}
-          <div className="hidden md:flex items-center">
+          <div className="flex items-center">
             {session.usuario && (
               <MarcacionesUI usuario={session.usuario} showToast={showToast} />
             )}
@@ -652,7 +652,7 @@ function AppInner() {
 
           {/* User Session Badge + Logout */}
           <div className="flex items-center gap-2 shrink-0">
-            <div className="hidden md:flex items-center gap-2 bg-white/5 border border-white/8 rounded-xl px-3 py-1.5">
+            <div className="hidden sm:flex items-center gap-2 bg-white/5 border border-white/8 rounded-xl px-3 py-1.5">
               <UserIcon className="w-3.5 h-3.5 text-slate-400" />
               <div>
                 <p className="text-[10px] font-bold text-white leading-none">{session.nombre || session.usuario || 'Usuario'}</p>
