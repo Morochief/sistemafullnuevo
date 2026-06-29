@@ -8,6 +8,8 @@ dotenv.config({ path: '.env.local' });
 dotenv.config();
 
 
+import { prisma } from './src/lib/prisma.ts';
+import { auditLog, getClientIp } from './server-audit.ts';
 import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import fs from 'fs';
@@ -53,8 +55,6 @@ import {
   validateSchema,
   PasswordComplexitySchema
 } from './server-validation.ts';
-import { auditLog, getClientIp } from './server-audit.ts';
-import { prisma } from './src/lib/prisma.ts';
 import { Decimal } from '@prisma/client/runtime/library';
 
 // Extend Express Request type to include user property
