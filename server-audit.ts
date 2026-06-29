@@ -54,6 +54,15 @@ export function auditLog(entry: AuditEntry): void {
       console.error('[AUDIT] Failed to write audit log entry:', err.message);
     }
   });
+
+  // Write to DB (async, non-blocking)
+  try {
+    const id = "aud" + Math.random().toString(36).substring(2, 11);
+    prisma.auditEvent.create({
+      data: { id, usuario: entry.usuario, accion: entry.accion, recurso: entry.recurso || null, resultado: entry.resultado, ip: entry.ip || null, detalle: entry.detalle || null }
+    }).catch(e => console.error("[AUDIT] DB error:", e.message));
+  } catch(e) { console.error("[AUDIT] DB catch:", e.message); }
+
 }
 
 /**
