@@ -120,6 +120,10 @@ Cuando sea necesario realizar tareas complejas, se delegará en los siguientes *
 - **Regla:** Al cachear el estado de actividad del usuario en `requireAuth` para mitigar latencias, se debe guardar en la entrada de la caché la metadata de negocio completa (`nombre`, `rol`, `colaboradorId`).
 - **Solución:** No confiar únicamente en los datos planos que vienen originalmente en la cookie JWT (los cuales pueden estar obsoletos o no tener campos como `colaboradorId` tras migraciones). La caché debe actuar como snapshot sincronizado del usuario en la base de datos para inyectarlo en `req.user` de forma consistente en cada petición recurrente.
 
+### J. Habilitación de Instalación Nativa (PWA / Progressive Web App)
+- **Regla:** Para que la web sea instalable como App nativa en móviles y PC, debe proveer un archivo `manifest.json` enlazado en `index.html` con iconos cuadrados en PNG (mínimo de 192px y 512px) y registrar un `sw.js` (Service Worker) que controle las solicitudes fetch.
+- **Solución:** El Service Worker no debe almacenar en caché solicitudes mutativas (`POST`, `PUT`, `DELETE`) ni llamadas a APIs de bases de datos/IA externas. Se debe validar de forma explícita: `if (event.request.method !== 'GET') return;` para evitar romper las validaciones transaccionales CSRF o la autenticación HttpOnly.
+
 
 
 ## 7. Estrategia y Suite de Tests de Integración
