@@ -706,7 +706,7 @@ export default function Dashboard({ data, onNavigateImport, onDeleteRegistro, on
                 No hay datos acumulados para graficar
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%" minHeight={256}>
+              <ResponsiveContainer width="100%" height={256}>
                 <AreaChart data={costTrendData} margin={{ left: -10, right: 10, top: 10, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
@@ -758,7 +758,7 @@ export default function Dashboard({ data, onNavigateImport, onDeleteRegistro, on
             {clientCostData.length === 0 ? (
               <div className="text-slate-500 text-xs font-mono">No hay datos</div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%" minHeight={192}>
+              <ResponsiveContainer width="100%" height={192}>
                 <PieChart>
                   <Pie
                     data={clientCostData}
@@ -833,7 +833,7 @@ export default function Dashboard({ data, onNavigateImport, onDeleteRegistro, on
                 No hay horas de Mano de Obra registradas aún
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%" minHeight={240}>
+              <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={projectHoursData} margin={{ left: -10, right: 10, top: 10, bottom: 20 }}>
                   <XAxis dataKey="name" stroke="#475569" fontSize={10} angle={-15} textAnchor="end" interval={0} height={45} />
                   <YAxis stroke="#475569" fontSize={11} tickFormatter={(val) => `${val}h`} tickLine={false} />
