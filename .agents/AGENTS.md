@@ -112,6 +112,14 @@ Cuando sea necesario realizar tareas complejas, se delegará en los siguientes *
 - **Regla:** Al programar seeds automáticos por base de datos vacía, nunca se deben crear registros genéricos ficticios (ej: "Cliente General") si el frontend o los fixtures históricos tienen hardcodeados IDs específicos (`cli_1`, `pro_1`).
 - **Solución:** Sintonizar los IDs sembrados de forma unívoca con el `initialData` del negocio original para garantizar que los dropdowns y consultas funcionen perfectamente tras limpiezas de base de datos.
 
+### H. Evitar Dependencias Circulares de Módulos (ESM / esbuild)
+- **Regla:** En proyectos empaquetados bajo ESM con esbuild, si un módulo dependiente (como `server-auth.ts`) requiere el singleton de Prisma (`prisma.ts`), el archivo principal (`server.ts`) debe colocar la importación de `prisma` al inicio del archivo (antes que los middlewares).
+- **Solución:** Si se evalúan las rutas y middlewares antes de que se resuelva la inicialización de la base de datos por dependencias circulares, la constante `prisma` quedará como `undefined`, provocando errores `Cannot read properties of undefined` en tiempo de ejecución.
+
+### I. Caching Seguro de Sesión en Memoria (Pérdida de Payload)
+- **Regla:** Al cachear el estado de actividad del usuario en `requireAuth` para mitigar latencias, se debe guardar en la entrada de la caché la metadata de negocio completa (`nombre`, `rol`, `colaboradorId`).
+- **Solución:** No confiar únicamente en los datos planos que vienen originalmente en la cookie JWT (los cuales pueden estar obsoletos o no tener campos como `colaboradorId` tras migraciones). La caché debe actuar como snapshot sincronizado del usuario en la base de datos para inyectarlo en `req.user` de forma consistente en cada petición recurrente.
+
 
 
 ## 7. Estrategia y Suite de Tests de Integración
