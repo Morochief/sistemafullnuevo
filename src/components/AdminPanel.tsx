@@ -1167,6 +1167,30 @@ export default function AdminPanel({
             <span>Usuarios de Acceso</span>
           </button>
 
+          <button
+            onClick={() => setActiveSubTab('marcaciones')}
+            className={`flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-semibold shrink-0 cursor-pointer transition-all ${
+              activeSubTab === 'marcaciones' 
+                ? 'bg-amber-600/20 text-amber-300 border border-amber-500/30 font-bold' 
+                : 'text-slate-400 hover:bg-white/5'
+            }`}
+          >
+            <Clock className="w-4 h-4" />
+            <span>Marcaciones</span>
+          </button>
+
+          <button
+            onClick={() => setActiveSubTab('auditlog')}
+            className={`flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-semibold shrink-0 cursor-pointer transition-all ${
+              activeSubTab === 'auditlog' 
+                ? 'bg-rose-600/20 text-rose-300 border border-rose-500/30 font-bold' 
+                : 'text-slate-400 hover:bg-white/5'
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+            <span>Accesos</span>
+          </button>
+
         </nav>
 
         {/* Global actions - Reset dataset */}
@@ -1286,6 +1310,14 @@ export default function AdminPanel({
               key="usuarios"
               colaboradores={data.colaboradores}
             />
+          )}
+
+          {activeSubTab === 'marcaciones' && (
+            <TimelineMarcaciones key="marcaciones" />
+          )}
+
+          {activeSubTab === 'auditlog' && (
+            <AuditLogTab key="auditlog" />
           )}
         </AnimatePresence>
       </div>
