@@ -133,3 +133,43 @@ Para blindar la lógica de negocio sin sobre-ingeniería (filosofía *Ponytail*)
 4. **Limpieza en Cascada (Cleanup):** Al finalizar los tests de integración (`afterAll`), se debe realizar el borrado en cascada respetando las restricciones de llave foránea (Foreign Keys) de Supabase (ej: primero eliminar registros, luego proyectos, luego el cliente temporal).
 
 
+## H. Subsistema de Marcaciones (Control Horario con Geocerca)
+
+### Proposito
+Permitir a empleados marcar entrada y salida solo si estan fisicamente dentro de la zona laboral (validado por GPS). Proporciona al admin un timeline auditable con deteccion de uso compartido de credenciales.
+
+### Modelos de Datos (Prisma)
+- **Marcacion**: id, usuario, tipo (ENTRADA|SALIDA), timestamp (server-side), lat/lng, precision, ip, dispositivoHash (SHA-256 de user-agent + IP), userAgent, origen (APP|API)
+- **GeocercaConfig**: id, lat, lng, radioMetros, activo (una fila, id='default')
+
+### Endpoints
+| Metodo | Ruta | Auth | Descripcion |
+|--------|------|------|-------------|
+| GET | /api/marcacion/config | Publico | Devuelve geocerca activa. Seed automatico si no existe |
+| POST | /api/marcacion/entrada | requireAuth | Marca entrada. Valida geocerca y GPS. Guarda IP + hash dispositivo |
+| POST | /api/marcacion/salida | requireAuth | Marca salida. Mismas validaciones |
+| GET | /api/marcacion/mis-marcaciones | requireAuth | Historial del usuario (ultimas 50) |
+| GET | /api/marcacion/admin/timeline | requireAdmin | Timeline completo con deteccion de anomalias (MULTIPLES_IPS, MULTIPLES_DISPOSITIVOS) |
+
+### Frontend
+- **MarcacionesUI.tsx** — Boton ENTRADA/SALIDA en el header (visible para todos los usuarios). Usa Geolocation API del navegador. Muestra historial de ultimas 5 marcaciones en dropdown. Cambia de color segun estado (azul = sin entrada, verde = entrada activa).
+- **TimelineMarcaciones.tsx** — Pestana "Marcaciones" en AdminPanel (color ambar). Filtro por usuario, muestra IPs, coordenadas, y alertas de anomalias.
+
+### Reglas de Negocio
+1. **Geocerca como firewall** — no se puede marcar fuera de la zona. Sin excepcion.
+2. **Timestamp del servidor** — el servidor estampa la hora, no el cliente.
+3. **GPS requerido** — si el navegador no da permisos, no se puede marcar.
+4. **Pares entrada-salida** — no se permite doble entrada sin salida, ni salida sin entrada previa.
+
+### Deteccion de Credenciales Compartidas
+El endpoint /api/marcacion/admin/timeline agrupa marcaciones por usuario y detecta:
+- MULTIPLES_IPS: mismo usuario desde distintas IPs
+- MULTIPLES_DISPOSITIVOS: mismo usuario con distinto dispositivoHash
+
+### Seed Automatico
+Al primer GET /api/marcacion/config si no existe geocerca, se crea con coordenadas del local y radio 100m.
+
+### Coordenadas de Geocerca
+- Lat: -25.320588291024226
+- Lng: -57.62418119104182
+- Radio: 100 metros
