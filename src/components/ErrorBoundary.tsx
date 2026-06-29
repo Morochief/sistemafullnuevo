@@ -43,6 +43,13 @@ class ErrorBoundary extends Component<Props, State> {
     });
   }
 
+  handleLogout = async (): Promise<void> => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+    } catch {}
+    window.location.href = '/';
+  };
+
   handleReset = (): void => {
     this.setState({
       hasError: false,
