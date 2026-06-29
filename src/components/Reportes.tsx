@@ -200,7 +200,7 @@ export default function Reportes({ data, markupRate, onMarkupChange }: ReportesP
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
                 {/* Filter: Cliente */}
                 <div>
-                  <label className="text-[10px] font-mono uppercase tracking-wider text-slate-500 mb-1 block">Cliente</label>
+                  <label className="text-xs font-mono uppercase tracking-wider text-slate-400 mb-1 block">Cliente</label>
                   <select
                     value={filterCliente}
                     onChange={e => { setFilterCliente(e.target.value); setFilterProyecto(''); }}
@@ -215,7 +215,7 @@ export default function Reportes({ data, markupRate, onMarkupChange }: ReportesP
 
                 {/* Filter: Proyecto */}
                 <div>
-                  <label className="text-[10px] font-mono uppercase tracking-wider text-slate-500 mb-1 block">Proyecto</label>
+                  <label className="text-xs font-mono uppercase tracking-wider text-slate-400 mb-1 block">Proyecto</label>
                   <select
                     value={filterProyecto}
                     onChange={e => setFilterProyecto(e.target.value)}
@@ -232,7 +232,7 @@ export default function Reportes({ data, markupRate, onMarkupChange }: ReportesP
 
                 {/* Filter: Concepto */}
                 <div>
-                  <label className="text-[10px] font-mono uppercase tracking-wider text-slate-500 mb-1 block">Concepto</label>
+                  <label className="text-xs font-mono uppercase tracking-wider text-slate-400 mb-1 block">Concepto</label>
                   <select
                     value={filterConcepto}
                     onChange={e => setFilterConcepto(e.target.value)}
@@ -247,7 +247,7 @@ export default function Reportes({ data, markupRate, onMarkupChange }: ReportesP
 
                 {/* Filter: Fecha Desde */}
                 <div>
-                  <label className="text-[10px] font-mono uppercase tracking-wider text-slate-500 mb-1 block">Desde</label>
+                  <label className="text-xs font-mono uppercase tracking-wider text-slate-400 mb-1 block">Desde</label>
                   <input
                     type="date"
                     value={filterFechaDesde}
@@ -258,7 +258,7 @@ export default function Reportes({ data, markupRate, onMarkupChange }: ReportesP
 
                 {/* Filter: Fecha Hasta */}
                 <div>
-                  <label className="text-[10px] font-mono uppercase tracking-wider text-slate-500 mb-1 block">Hasta</label>
+                  <label className="text-xs font-mono uppercase tracking-wider text-slate-400 mb-1 block">Hasta</label>
                   <input
                     type="date"
                     value={filterFechaHasta}
@@ -419,7 +419,7 @@ export default function Reportes({ data, markupRate, onMarkupChange }: ReportesP
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[10px] font-mono uppercase tracking-wider text-slate-500 mb-1.5 block">
+                  <label className="text-xs font-mono uppercase tracking-wider text-slate-400 mb-1.5 block">
                     Seleccionar Proyecto
                   </label>
                   <select
@@ -439,7 +439,7 @@ export default function Reportes({ data, markupRate, onMarkupChange }: ReportesP
                   </select>
                 </div>
                 <div>
-                  <label className="text-[10px] font-mono uppercase tracking-wider text-slate-500 mb-1.5 block">
+                  <label className="text-xs font-mono uppercase tracking-wider text-slate-400 mb-1.5 block">
                     Markup / Rentabilidad (%)
                   </label>
                   <div className="relative">

@@ -935,7 +935,7 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Cliente */}
           <div>
-            <label className="text-[10px] font-mono uppercase tracking-wider text-slate-500 mb-2 block flex items-center gap-1.5">
+            <label className="text-xs font-mono uppercase tracking-wider text-slate-400 mb-2 block flex items-center gap-1.5">
               Cliente
               <span className="text-rose-400">*</span>
               {timerRunning && <Lock className="w-3 h-3 text-amber-400" title="Bloqueado durante timer activo" />}
@@ -961,7 +961,7 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
 
           {/* Proyecto */}
           <div>
-            <label className="text-[10px] font-mono uppercase tracking-wider text-slate-500 mb-2 block flex items-center gap-1.5">
+            <label className="text-xs font-mono uppercase tracking-wider text-slate-400 mb-2 block flex items-center gap-1.5">
               Proyecto
               <span className="text-rose-400">*</span>
               {timerRunning && <Lock className="w-3 h-3 text-amber-400" title="Bloqueado durante timer activo" />}
@@ -984,7 +984,7 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
 
           {/* Fecha */}
           <div>
-            <label className="text-[10px] font-mono uppercase tracking-wider text-slate-500 mb-2 block">
+            <label className="text-xs font-mono uppercase tracking-wider text-slate-400 mb-2 block">
               Fecha
             </label>
             <input
@@ -1256,7 +1256,7 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
               <div className="space-y-4 pt-2">
                 {/* Colaborador */}
                 <div>
-                  <label className="text-[10px] font-mono uppercase tracking-wider text-slate-500 mb-2 block flex items-center gap-2">
+                  <label className="text-xs font-mono uppercase tracking-wider text-slate-400 mb-2 block flex items-center gap-2">
                     Colaborador
                     {!canChangeColaborador && (
                       <span className="text-amber-400 text-[9px] flex items-center gap-1">
@@ -1297,7 +1297,7 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
 
                 {/* Descripción */}
                 <div>
-                  <label className="text-[10px] font-mono uppercase tracking-wider text-slate-500 mb-2 block">
+                  <label className="text-xs font-mono uppercase tracking-wider text-slate-400 mb-2 block">
                     Descripción de la tarea
                   </label>
                   <input
@@ -1312,7 +1312,7 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
 
                 {/* Tarifa */}
                 <div>
-                  <label className="text-[10px] font-mono uppercase tracking-wider text-slate-500 mb-2 block flex items-center gap-2">
+                  <label className="text-xs font-mono uppercase tracking-wider text-slate-400 mb-2 block flex items-center gap-2">
                     Tarifa por minuto (Gs.)
                     {!canChangeColaborador && (
                       <span className="text-slate-600 text-[9px] flex items-center gap-1">

@@ -909,11 +909,11 @@ export default function Dashboard({ data, onNavigateImport, onDeleteRegistro, on
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {/* Filtro Cliente */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-mono text-slate-400 uppercase tracking-wider">Cliente</label>
+              <label className="text-xs font-mono uppercase tracking-wider text-slate-400">Cliente</label>
               <select
                 value={filterCliente}
                 onChange={(e) => setFilterCliente(e.target.value)}
-                className="px-3 py-2 bg-[#0f172a]/50 border border-white/10 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-blue-500/50 transition-colors cursor-pointer"
+                className="px-3 py-2 glass-input rounded-xl text-sm text-slate-200 focus:outline-none focus:border-blue-500/50 transition-colors cursor-pointer"
               >
                 <option value="">Todos los clientes</option>
                 {data.clientes.map(c => (
@@ -924,11 +924,11 @@ export default function Dashboard({ data, onNavigateImport, onDeleteRegistro, on
 
             {/* Filtro Proyecto */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-mono text-slate-400 uppercase tracking-wider">Proyecto</label>
+              <label className="text-xs font-mono uppercase tracking-wider text-slate-400">Proyecto</label>
               <select
                 value={filterProyecto}
                 onChange={(e) => setFilterProyecto(e.target.value)}
-                className="px-3 py-2 bg-[#0f172a]/50 border border-white/10 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-blue-500/50 transition-colors cursor-pointer"
+                className="px-3 py-2 glass-input rounded-xl text-sm text-slate-200 focus:outline-none focus:border-blue-500/50 transition-colors cursor-pointer"
               >
                 <option value="">Todos los proyectos</option>
                 {data.proyectos
@@ -941,30 +941,30 @@ export default function Dashboard({ data, onNavigateImport, onDeleteRegistro, on
 
             {/* Filtro Fecha Desde */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-mono text-slate-400 uppercase tracking-wider">Fecha Desde</label>
+              <label className="text-xs font-mono uppercase tracking-wider text-slate-400">Fecha Desde</label>
               <input
                 type="date"
                 value={filterFechaDesde}
                 onChange={(e) => setFilterFechaDesde(e.target.value)}
-                className="px-3 py-2 bg-[#0f172a]/50 border border-white/10 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-blue-500/50 transition-colors cursor-pointer"
+                className="px-3 py-2 glass-input rounded-xl text-sm text-slate-200 focus:outline-none focus:border-blue-500/50 transition-colors cursor-pointer"
               />
             </div>
 
             {/* Filtro Fecha Hasta */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-mono text-slate-400 uppercase tracking-wider">Fecha Hasta</label>
+              <label className="text-xs font-mono uppercase tracking-wider text-slate-400">Fecha Hasta</label>
               <input
                 type="date"
                 value={filterFechaHasta}
                 onChange={(e) => setFilterFechaHasta(e.target.value)}
-                className="px-3 py-2 bg-[#0f172a]/50 border border-white/10 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-blue-500/50 transition-colors cursor-pointer"
+                className="px-3 py-2 glass-input rounded-xl text-sm text-slate-200 focus:outline-none focus:border-blue-500/50 transition-colors cursor-pointer"
               />
             </div>
           </div>
 
           {/* Filtro Concepto (Botones) */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-mono text-slate-400 uppercase tracking-wider">Concepto</label>
+            <label className="text-xs font-mono uppercase tracking-wider text-slate-400">Concepto</label>
             <div className="flex gap-2">
               <button
                 onClick={() => setFilterConcepto('')}
@@ -1013,7 +1013,7 @@ export default function Dashboard({ data, onNavigateImport, onDeleteRegistro, on
         {/* FASE 5: Input de búsqueda global */}
         <div className="mb-6 p-4 bg-white/5 border border-white/10 rounded-xl">
           <div className="flex flex-col gap-2">
-            <label className="text-xs font-mono text-slate-400 uppercase tracking-wider">
+            <label className="text-xs font-mono uppercase tracking-wider text-slate-400">
               Búsqueda Global
             </label>
             <div className="relative">
@@ -1025,7 +1025,7 @@ export default function Dashboard({ data, onNavigateImport, onDeleteRegistro, on
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Buscar en Cliente, Proyecto, Descripción, Concepto..."
-                className="w-full pl-10 pr-10 py-2.5 bg-[#0f172a]/50 border border-white/10 rounded-lg text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 transition-colors"
+                className="w-full pl-10 pr-10 py-2.5 glass-input rounded-xl text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 transition-colors"
               />
               {searchQuery && (
                 <button
@@ -1305,7 +1305,7 @@ export default function Dashboard({ data, onNavigateImport, onDeleteRegistro, on
                 <select
                   value={itemsPerPage}
                   onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
-                  className="px-3 py-1.5 bg-[#0f172a]/50 border border-white/10 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-blue-500/50 transition-colors cursor-pointer"
+                  className="px-3 py-1.5 glass-input rounded-xl text-sm text-slate-200 focus:outline-none focus:border-blue-500/50 transition-colors cursor-pointer"
                   aria-label="Registros por página"
                 >
                   <option value={10}>10</option>
@@ -1484,7 +1484,7 @@ export default function Dashboard({ data, onNavigateImport, onDeleteRegistro, on
                       id="edit-concepto"
                       value={editForm.concepto}
                       onChange={(e) => handleEditFormChange('concepto', e.target.value as 'MO' | 'Insumo')}
-                      className="px-3 py-2 bg-[#0f172a]/50 border border-white/10 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-blue-500/50 transition-colors cursor-pointer"
+                      className="px-3 py-2 glass-input rounded-xl text-sm text-slate-200 focus:outline-none focus:border-blue-500/50 transition-colors cursor-pointer"
                     >
                       <option value="MO">Mano de Obra (MO)</option>
                       <option value="Insumo">Insumo</option>

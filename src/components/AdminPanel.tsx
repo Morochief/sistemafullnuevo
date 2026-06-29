@@ -505,7 +505,7 @@ function RegistroManualForm({
           <button
             type="submit"
             disabled={isSubmitPending}
-            className="w-full py-3.5 bg-[#2563eb] hover:bg-[#1d4ed8] font-bold text-sm text-white rounded-xl shadow-lg shadow-blue-500/20 cursor-pointer flex justify-center items-center gap-2 border border-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 font-bold text-sm text-white rounded-xl shadow-lg shadow-blue-500/20 cursor-pointer flex justify-center items-center gap-2 border border-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSubmitPending ? (
               <>
@@ -606,7 +606,7 @@ function ClientesTab({
           <div className="flex items-end">
             <button
               type="submit"
-              className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 font-bold text-xs text-white rounded-xl cursor-pointer transition-all flex items-center justify-center gap-2"
+              className="w-full py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:bg-emerald-500 font-bold text-xs text-white rounded-xl cursor-pointer transition-all flex items-center justify-center gap-2"
             >
               <Plus className="w-4 h-4" />
               Agregar Cliente
@@ -734,7 +734,7 @@ function ProyectosTab({
           <div className="flex items-end">
             <button
               type="submit"
-              className="w-full py-2 bg-cyan-600 hover:bg-cyan-500 font-bold text-xs text-white rounded-xl cursor-pointer transition-all flex items-center justify-center gap-2"
+              className="w-full py-2 bg-gradient-to-r from-cyan-600 to-teal-600 hover:bg-cyan-500 font-bold text-xs text-white rounded-xl cursor-pointer transition-all flex items-center justify-center gap-2"
             >
               <FolderGit2 className="w-4 h-4" />
               Abrir Proyecto
@@ -880,7 +880,7 @@ function ColaboradoresTab({
           <div className="flex items-end">
             <button
               type="submit"
-              className="w-full py-2 bg-pink-600 hover:bg-pink-500 font-bold text-xs text-white rounded-xl cursor-pointer transition-all flex items-center justify-center gap-2"
+              className="w-full py-2 bg-gradient-to-r from-pink-600 to-rose-600 hover:bg-pink-500 font-bold text-xs text-white rounded-xl cursor-pointer transition-all flex items-center justify-center gap-2"
             >
               <Plus className="w-4 h-4" />
               Dar de Alta
