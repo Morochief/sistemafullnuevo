@@ -30,6 +30,7 @@ import Reportes from './components/Reportes.tsx';
 import Login from './components/Login.tsx';
 import RegistroOperativo from './components/RegistroOperativo.tsx';
 import MisRegistros from './components/MisRegistros.tsx';
+import MarcacionesUI from './components/MarcacionesUI.tsx';
 import ErrorBoundary from './components/ErrorBoundary.tsx';
 import { NotifProvider, useNotif } from './context/NotifContext.tsx';
 
@@ -640,6 +641,13 @@ function AppInner() {
               );
             })}
           </nav>
+
+          {/* Marcaciones UI */}
+          <div className="hidden md:flex items-center">
+            {session.usuario && (
+              <MarcacionesUI usuario={session.usuario} showToast={showToast} />
+            )}
+          </div>
 
           {/* User Session Badge + Logout */}
           <div className="flex items-center gap-2 shrink-0">
