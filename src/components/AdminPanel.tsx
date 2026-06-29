@@ -29,6 +29,7 @@ import ConfirmModal from './ConfirmModal.tsx';
 import { useNotif } from '../context/NotifContext.tsx';
 import UsuariosTab from './UsuariosTab.tsx';
 import TimelineMarcaciones from './TimelineMarcaciones.tsx';
+import AuditLogTab from './AuditLogTab.tsx';
 
 interface AdminPanelProps {
   data: DatabaseState;
@@ -954,7 +955,7 @@ export default function AdminPanel({
 }: AdminPanelProps) {
   const { showToast, requestConfirm } = useNotif();
   // Tabs for the administration panel - usar initialSubTab si existe
-  const [activeSubTab, setActiveSubTab] = useState<'registro' | 'clientes' | 'proyectos' | 'colaboradores' | 'vehiculos' | 'usuarios' | 'marcaciones'>(
+  const [activeSubTab, setActiveSubTab] = useState<'registro' | 'clientes' | 'proyectos' | 'colaboradores' | 'vehiculos' | 'usuarios' | 'marcaciones' | 'auditlog'>(
     (initialSubTab as any) || 'registro'
   );
 

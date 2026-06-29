@@ -201,6 +201,22 @@ model Marcacion {
   @@map("marcaciones")
 }
 
+model AuditEvent {
+  id        String   @id @db.VarChar(50)
+  usuario   String   @db.VarChar(50)
+  accion    String   @db.VarChar(50)
+  recurso   String?  @db.VarChar(200)
+  resultado String   @db.VarChar(20)
+  ip        String?  @db.VarChar(45)
+  detalle   String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([usuario, createdAt(sort: Desc)])
+  @@index([accion, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  @@map("audit_events")
+}
+
 model GeocercaConfig {
   id          String   @id @default("default")
   lat         Decimal  @db.Decimal(10, 7)
