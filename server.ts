@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -8,8 +8,8 @@ dotenv.config({ path: '.env.local' });
 dotenv.config();
 
 
-import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
+import { prisma } from './src/lib/prisma.ts';
+
 import { auditLog, getClientIp } from './server-audit.ts';
 import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
@@ -141,7 +141,7 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 // Trust Render's proxy/load balancer so express-rate-limit and IP detection work correctly
-// Render adds X-Forwarded-For header — without this, rate-limit throws ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
+// Render adds X-Forwarded-For header â€” without this, rate-limit throws ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
 if (process.env.NODE_ENV === 'production') {
   app.set('trust proxy', 1);
 }
@@ -177,13 +177,13 @@ const initialData: DatabaseState = {
   ],
   proyectos: [
     { id: 'pro_1', clienteId: 'cli_1', nombre: 'Ploteo de 2 Freezers Marca XXX', estado: 'En Proceso', fechaInicio: '2026-05-12' },
-    { id: 'pro_2', clienteId: 'cli_2', nombre: 'Cartelería Luminosa Local Central', estado: 'Pendiente', fechaInicio: '2026-06-10' },
-    { id: 'pro_3', clienteId: 'cli_1', nombre: 'Mantenimiento de Góndolas Supermercado', estado: 'Completado', fechaInicio: '2026-05-20' }
+    { id: 'pro_2', clienteId: 'cli_2', nombre: 'CartelerÃ­a Luminosa Local Central', estado: 'Pendiente', fechaInicio: '2026-06-10' },
+    { id: 'pro_3', clienteId: 'cli_1', nombre: 'Mantenimiento de GÃ³ndolas Supermercado', estado: 'Completado', fechaInicio: '2026-05-20' }
   ],
   colaboradores: [
-    { id: 'col_1', nombre: 'Rodrigo Gómez', tarifaSugerida: 350, rol: 'Técnico de Ploteo' },
+    { id: 'col_1', nombre: 'Rodrigo GÃ³mez', tarifaSugerida: 350, rol: 'TÃ©cnico de Ploteo' },
     { id: 'col_2', nombre: 'Kevin Delgado', tarifaSugerida: 400, rol: 'Instalador Senior' },
-    { id: 'col_3', nombre: 'Laura Benítez', tarifaSugerida: 320, rol: 'Ayudante de Taller' }
+    { id: 'col_3', nombre: 'Laura BenÃ­tez', tarifaSugerida: 320, rol: 'Ayudante de Taller' }
   ],
   registros: [
     {
@@ -194,7 +194,7 @@ const initialData: DatabaseState = {
       proyectoNombre: 'Ploteo de 2 Freezers Marca XXX',
       fecha: '2026-06-15',
       concepto: 'MO',
-      descripcion: 'Rodrigo Gómez retiro y ploteado',
+      descripcion: 'Rodrigo GÃ³mez retiro y ploteado',
       colaboradorId: 'col_1',
       hsInicio: '08:00',
       hsFin: '12:00',
@@ -311,7 +311,7 @@ const authLimiter = rateLimit({
     success: false,
     error: {
       code: 'RATE_LIMIT_EXCEEDED',
-      message: 'Demasiados intentos de inicio de sesión. Por favor, intentá nuevamente en 15 minutos.'
+      message: 'Demasiados intentos de inicio de sesiÃ³n. Por favor, intentÃ¡ nuevamente en 15 minutos.'
     }
   },
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
@@ -353,7 +353,7 @@ function validateCSRF(req: Request, res: Response, next: NextFunction) {
       success: false,
       error: {
         code: 'CSRF_TOKEN_INVALID',
-        message: 'Token CSRF inválido'
+        message: 'Token CSRF invÃ¡lido'
       }
     });
   }
@@ -386,9 +386,9 @@ app.use('/api', (req, res, next) => {
 
 // --- AUTHENTICATION ROUTES (PUBLIC) ---
 
-// ═══════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // MARCACIONES (Control Horario con Geocerca)
-// ═══════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 app.get('/api/marcacion/config', async (req, res) => {
   try {
@@ -523,7 +523,7 @@ app.get('/api/csrf-token', (req, res) => {
     res.cookie('sessionId', sessionId, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax', // lax en ambos entornos — protege CSRF pero funciona desde links externos en mobile (WhatsApp, email, Safari ITP)
+      sameSite: 'lax', // lax en ambos entornos â€” protege CSRF pero funciona desde links externos en mobile (WhatsApp, email, Safari ITP)
       maxAge: 3600000 // 1 hour
     });
   }
@@ -551,7 +551,7 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
       success: false,
       error: {
         code: 'VALIDATION_ERROR',
-        message: 'Datos de login inválidos',
+        message: 'Datos de login invÃ¡lidos',
         details: validation.errors
       }
     } as ApiResponse);
@@ -576,7 +576,7 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
         success: false,
         error: {
           code: 'INVALID_CREDENTIALS',
-          message: 'Usuario o contraseña incorrectos'
+          message: 'Usuario o contraseÃ±a incorrectos'
         }
       } as ApiResponse);
     }
@@ -593,7 +593,7 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
     res.cookie('jwt', token, {
       httpOnly: true, // Cannot be accessed by JavaScript
       secure: process.env.NODE_ENV === 'production', // Only over HTTPS in production
-      sameSite: 'lax', // lax en todos los entornos — protege CSRF pero funciona desde links externos en mobile (WhatsApp, email, Safari ITP)
+      sameSite: 'lax', // lax en todos los entornos â€” protege CSRF pero funciona desde links externos en mobile (WhatsApp, email, Safari ITP)
       maxAge: 12 * 60 * 60 * 1000 // 12 hours (matches JWT_EXPIRES_IN default)
     });
     
@@ -644,13 +644,13 @@ app.post('/api/auth/logout', (req, res) => {
   res.clearCookie('sessionId', cookieOptions);
   res.json({
     success: true,
-    message: 'Sesión cerrada con éxito'
+    message: 'SesiÃ³n cerrada con Ã©xito'
   });
 });
 
 /**
  * GET /api/auth/me
- * Returns current user info from JWT cookie — used on page reload to restore session
+ * Returns current user info from JWT cookie â€” used on page reload to restore session
  * without re-entering credentials.
  */
 app.get('/api/auth/me', requireAuth, (req, res) => {
@@ -719,7 +719,7 @@ app.post('/api/users', requireAuth, requireAdmin, authLimiter, async (req, res) 
   if (!['Admin', 'Operario', 'Visor'].includes(rol)) {
     return res.status(400).json({
       success: false,
-      error: { message: 'Rol inválido. Debe ser Admin, Operario o Visor' }
+      error: { message: 'Rol invÃ¡lido. Debe ser Admin, Operario o Visor' }
     });
   }
 
@@ -740,7 +740,7 @@ app.post('/api/users', requireAuth, requireAdmin, authLimiter, async (req, res) 
     if (existingUser) {
       return res.status(400).json({
         success: false,
-        error: { message: 'El nombre de usuario ya está registrado' }
+        error: { message: 'El nombre de usuario ya estÃ¡ registrado' }
       });
     }
 
@@ -816,7 +816,7 @@ app.delete('/api/users/:id', requireAuth, requireAdmin, async (req, res) => {
     if (user.username.toLowerCase() === (req as any).user?.usuario?.toLowerCase()) {
       return res.status(400).json({
         success: false,
-        error: { message: 'No puedes desactivar o eliminar tu propio usuario en sesión' }
+        error: { message: 'No puedes desactivar o eliminar tu propio usuario en sesiÃ³n' }
       });
     }
 
@@ -856,7 +856,7 @@ app.delete('/api/users/:id', requireAuth, requireAdmin, async (req, res) => {
 
     return res.json({
       success: true,
-      message: updatedUser.activo ? 'Usuario activado con éxito' : 'Usuario desactivado con éxito',
+      message: updatedUser.activo ? 'Usuario activado con Ã©xito' : 'Usuario desactivado con Ã©xito',
       data: { activo: updatedUser.activo }
     });
   } catch (err: any) {
@@ -894,7 +894,7 @@ app.put('/api/users/:id', requireAuth, requireAdmin, async (req, res) => {
       if (!['Admin', 'Operario', 'Visor'].includes(rol)) {
         return res.status(400).json({
           success: false,
-          error: { message: 'Rol inválido. Debe ser Admin, Operario o Visor' }
+          error: { message: 'Rol invÃ¡lido. Debe ser Admin, Operario o Visor' }
         });
       }
       updateData.rol = mapUiRolToDb(rol);
@@ -910,7 +910,7 @@ app.put('/api/users/:id', requireAuth, requireAdmin, async (req, res) => {
         if (duplicate) {
           return res.status(400).json({
             success: false,
-            error: { message: 'El nombre de usuario ya está registrado' }
+            error: { message: 'El nombre de usuario ya estÃ¡ registrado' }
           });
         }
         updateData.username = cleanUsername;
@@ -966,7 +966,7 @@ app.put('/api/users/:id', requireAuth, requireAdmin, async (req, res) => {
 
     return res.json({
       success: true,
-      message: 'Usuario actualizado con éxito',
+      message: 'Usuario actualizado con Ã©xito',
       data: {
         id: updatedUser.id,
         username: updatedUser.username,
@@ -1271,7 +1271,7 @@ app.post('/api/save-state', requireAuth, async (req, res) => {
       success: false,
       error: {
         code: 'VALIDATION_ERROR',
-        message: 'Estado de base de datos inválido',
+        message: 'Estado de base de datos invÃ¡lido',
         details: validation.errors
       }
     } as ApiResponse);
@@ -1286,7 +1286,7 @@ app.post('/api/save-state', requireAuth, async (req, res) => {
       success: false,
       error: {
         code: 'DEPRECATED_ENDPOINT',
-        message: 'Este endpoint está deprecado. Use los endpoints CRUD individuales (/api/registros, /api/clientes, etc.)'
+        message: 'Este endpoint estÃ¡ deprecado. Use los endpoints CRUD individuales (/api/registros, /api/clientes, etc.)'
       }
     } as ApiResponse);
   } catch (error: any) {
@@ -1310,7 +1310,7 @@ app.post('/api/import/confirm', requireAuth, async (req, res) => {
   if (!Array.isArray(clientes) || !Array.isArray(proyectos) || !Array.isArray(registros)) {
     return res.status(400).json({
       success: false,
-      error: { code: 'VALIDATION_ERROR', message: 'Datos de importación inválidos' }
+      error: { code: 'VALIDATION_ERROR', message: 'Datos de importaciÃ³n invÃ¡lidos' }
     } as ApiResponse);
   }
 
@@ -1396,7 +1396,7 @@ app.post('/api/import/confirm', requireAuth, async (req, res) => {
           conceptoValido = 'MO';
         } else if (conceptoRaw === 'insumo' || conceptoRaw === 'insumos' || conceptoRaw === 'materiales') {
           conceptoValido = 'INSUMO';
-        } else if (conceptoRaw === 'vehiculo' || conceptoRaw === 'vehículo' || conceptoRaw === 'km') {
+        } else if (conceptoRaw === 'vehiculo' || conceptoRaw === 'vehÃ­culo' || conceptoRaw === 'km') {
           conceptoValido = 'VEHICULO';
         } else {
           // Fallback to INSUMO if unknown/other
@@ -1412,7 +1412,7 @@ app.post('/api/import/confirm', requireAuth, async (req, res) => {
             proyectoNombre: realProyectoNombre,
             fecha: new Date(r.fecha),
             concepto: conceptoValido,
-            descripcion: r.descripcion || 'Sin descripción',
+            descripcion: r.descripcion || 'Sin descripciÃ³n',
             colaboradorId: null,
             hsInicio: r.hsInicio ? r.hsInicio.substring(0, 5) : null,
             hsFin: r.hsFin ? r.hsFin.substring(0, 5) : null,
@@ -1444,7 +1444,7 @@ app.post('/api/import/confirm', requireAuth, async (req, res) => {
     res.json({
       success: true,
       data: result,
-      message: `Importación procesada: ${result.guardados} guardados, ${result.errores} errores.`
+      message: `ImportaciÃ³n procesada: ${result.guardados} guardados, ${result.errores} errores.`
     } as ApiResponse);
   } catch (error: any) {
     logger.error('Error in bulk import transaction:', error);
@@ -1457,7 +1457,7 @@ app.post('/api/import/confirm', requireAuth, async (req, res) => {
     });
     res.status(500).json({
       success: false,
-      error: { code: 'IMPORT_ERROR', message: 'Error al procesar la transacción de importación masiva' }
+      error: { code: 'IMPORT_ERROR', message: 'Error al procesar la transacciÃ³n de importaciÃ³n masiva' }
     } as ApiResponse);
   }
 });
@@ -1484,7 +1484,7 @@ app.post('/api/registros', requireAuth, async (req, res) => {
       success: false,
       error: {
         code: 'VALIDATION_ERROR',
-        message: 'Datos del registro inválidos',
+        message: 'Datos del registro invÃ¡lidos',
         details: validation.errors
       }
     } as ApiResponse);
@@ -1527,7 +1527,7 @@ app.post('/api/registros', requireAuth, async (req, res) => {
           success: false,
           error: {
             code: 'FORBIDDEN',
-            message: 'No tenés permiso para registrar horas de otros colaboradores'
+            message: 'No tenÃ©s permiso para registrar horas de otros colaboradores'
           }
         } as ApiResponse);
       }
@@ -1597,7 +1597,7 @@ app.post('/api/registros', requireAuth, async (req, res) => {
     res.status(201).json({
       success: true,
       data: newItem,
-      message: 'Registro creado con éxito'
+      message: 'Registro creado con Ã©xito'
     } as ApiResponse);
   } catch (error: any) {
     logger.error('[DEBUG] Error creating registro:', error?.message);
@@ -1665,7 +1665,7 @@ app.delete('/api/registros/:id', requireAuth, async (req, res) => {
     
     res.json({
       success: true,
-      message: 'Registro eliminado con éxito'
+      message: 'Registro eliminado con Ã©xito'
     } as ApiResponse);
   } catch (error: any) {
     console.error('Error deleting registro:', error);
@@ -1702,7 +1702,7 @@ app.put('/api/registros/:id', requireAuth, async (req, res) => {
       success: false,
       error: {
         code: 'VALIDATION_ERROR',
-        message: 'Datos del registro inválidos',
+        message: 'Datos del registro invÃ¡lidos',
         details: validation.errors
       }
     } as ApiResponse);
@@ -1757,7 +1757,7 @@ app.put('/api/registros/:id', requireAuth, async (req, res) => {
           success: false,
           error: {
             code: 'FORBIDDEN',
-            message: 'No tenés permiso para editar horas de otros colaboradores'
+            message: 'No tenÃ©s permiso para editar horas de otros colaboradores'
           }
         } as ApiResponse);
       }
@@ -1831,7 +1831,7 @@ app.put('/api/registros/:id', requireAuth, async (req, res) => {
     res.json({
       success: true,
       data: responseData,
-      message: 'Registro actualizado con éxito'
+      message: 'Registro actualizado con Ã©xito'
     } as ApiResponse);
   } catch (error: any) {
     logger.error('Error updating registro:', error);
@@ -1871,7 +1871,7 @@ app.patch('/api/registros/:id', requireAuth, async (req, res) => {
       success: false,
       error: {
         code: 'VALIDATION_ERROR',
-        message: 'Descripción requerida y debe ser un texto válido'
+        message: 'DescripciÃ³n requerida y debe ser un texto vÃ¡lido'
       }
     } as ApiResponse);
   }
@@ -1917,7 +1917,7 @@ app.patch('/api/registros/:id', requireAuth, async (req, res) => {
           success: false,
           error: {
             code: 'FORBIDDEN',
-            message: 'No tenés permiso para editar registros de otros colaboradores'
+            message: 'No tenÃ©s permiso para editar registros de otros colaboradores'
           }
         } as ApiResponse);
       }
@@ -1991,7 +1991,7 @@ app.patch('/api/registros/:id', requireAuth, async (req, res) => {
     res.json({
       success: true,
       data: responseData,
-      message: 'Registro actualizado con éxito'
+      message: 'Registro actualizado con Ã©xito'
     } as ApiResponse);
   } catch (error: any) {
     logger.error('Error patching registro:', error);
@@ -2011,7 +2011,7 @@ app.post('/api/clear', requireAuth, requireAdmin, async (req, res) => {
   const clientIp = getClientIp(req);
   const userPayload = req.user!;
   try {
-    // Limpiar Supabase en orden correcto dentro de una sola transacción
+    // Limpiar Supabase en orden correcto dentro de una sola transacciÃ³n
     await prisma.$transaction([
       prisma.registro.deleteMany({}),
       prisma.registroVehiculo.deleteMany({}),
@@ -2063,7 +2063,7 @@ function uploadSingleExcel(req: Request, res: Response, next: NextFunction) {
             success: false,
             error: {
               code: 'FILE_TOO_LARGE',
-              message: 'El archivo excede el tamaño máximo permitido (5MB)'
+              message: 'El archivo excede el tamaÃ±o mÃ¡ximo permitido (5MB)'
             }
           } as ApiResponse);
         }
@@ -2080,7 +2080,7 @@ function uploadSingleExcel(req: Request, res: Response, next: NextFunction) {
         success: false,
         error: {
           code: 'INVALID_FILE_TYPE',
-          message: err.message || 'Archivo inválido'
+          message: err.message || 'Archivo invÃ¡lido'
         }
       } as ApiResponse);
     }
@@ -2090,7 +2090,7 @@ function uploadSingleExcel(req: Request, res: Response, next: NextFunction) {
 
 app.post('/api/import-excel', requireAuth, uploadSingleExcel, async (req, res) => {
   if (!req.file) {
-    return res.status(400).json({ error: 'No se subió ningún archivo' });
+    return res.status(400).json({ error: 'No se subiÃ³ ningÃºn archivo' });
   }
 
   try {
@@ -2101,7 +2101,7 @@ app.post('/api/import-excel', requireAuth, uploadSingleExcel, async (req, res) =
     const rawRows = xlsx.utils.sheet_to_json<any>(worksheet);
 
     if (rawRows.length === 0) {
-      return res.status(400).json({ error: 'La hoja de cálculo está vacía.' });
+      return res.status(400).json({ error: 'La hoja de cÃ¡lculo estÃ¡ vacÃ­a.' });
     }
 
     const [dbClientes, dbProyectos, dbColaboradores] = await Promise.all([
@@ -2141,8 +2141,8 @@ app.post('/api/import-excel', requireAuth, uploadSingleExcel, async (req, res) =
       const projectName = (row['Proyecto'] || row['proyecto'] || row['Proyectos'] || '').toString().trim();
       const fechaRaw = row['Fecha'] || row['fecha'] || row['Fec'];
       const concepto = (row['Concepto'] || row['concepto'] || 'MO').toString().trim().toUpperCase() === 'MO' ? 'MO' : 'Insumo';
-      // IMPORTANTE: Excel puede tener "Descripción " con espacio al final
-      const descripcion = (row['Descripción'] || row['Descripción '] || row['descripcion'] || row['Descripcion'] || '').toString().trim();
+      // IMPORTANTE: Excel puede tener "DescripciÃ³n " con espacio al final
+      const descripcion = (row['DescripciÃ³n'] || row['DescripciÃ³n '] || row['descripcion'] || row['Descripcion'] || '').toString().trim();
       
       const hsInicio = row['Hs Inicio'] || row['hs_inicio'] || row['Inicio'] || '';
       const hsFin = row['Hs Fin'] || row['hs_fin'] || row['Fin'] || '';
@@ -2153,14 +2153,14 @@ app.post('/api/import-excel', requireAuth, uploadSingleExcel, async (req, res) =
       const precioUnitario = parseFloat(row['Precio Unitario'] || row['precio_unitario'] || row['Precio'] || row['Tarifa'] || 0);
       const computedTotal = parseFloat(row['Total'] || row['total'] || 0);
       
-      // CÁLCULO DE HORAS TOTALES:
-      // Tu fórmula Excel: =ENTERO(HORA(H3)*60+MINUTO(H3))
+      // CÃLCULO DE HORAS TOTALES:
+      // Tu fÃ³rmula Excel: =ENTERO(HORA(H3)*60+MINUTO(H3))
       // - "Cantidad" contiene los minutos (65, 98, 135)
-      // - "Hs Total" contiene fracción de día de Excel (0.04513888 = 01:05)
+      // - "Hs Total" contiene fracciÃ³n de dÃ­a de Excel (0.04513888 = 01:05)
       // 
-      // CONVERSIÓN: 65 minutos = 1.08 horas (no 1:05)
+      // CONVERSIÃ“N: 65 minutos = 1.08 horas (no 1:05)
       // Pero 1:05 en formato tiempo = 1 hora y 5 minutos = 65 minutos
-      // Entonces: 65 minutos / 60 = 1.08 horas ✅
+      // Entonces: 65 minutos / 60 = 1.08 horas âœ…
       let hsTotal = 0;
       
       if (concepto === 'MO' && cantidad > 0) {
@@ -2297,7 +2297,7 @@ app.post('/api/gemini-enrich', requireAuth, async (req, res) => {
       success: false,
       error: {
         code: 'VALIDATION_ERROR',
-        message: 'Datos inválidos para enriquecimiento',
+        message: 'Datos invÃ¡lidos para enriquecimiento',
         details: validation.errors
       }
     } as ApiResponse);
@@ -2312,7 +2312,7 @@ app.post('/api/gemini-enrich', requireAuth, async (req, res) => {
       success: false,
       error: {
         code: 'SERVICE_UNAVAILABLE',
-        message: 'El servicio de IA no está configurado. Continuá usando el sistema sin esta función.'
+        message: 'El servicio de IA no estÃ¡ configurado. ContinuÃ¡ usando el sistema sin esta funciÃ³n.'
       }
     } as ApiResponse);
   }
@@ -2321,17 +2321,17 @@ app.post('/api/gemini-enrich', requireAuth, async (req, res) => {
     const ai = new GoogleGenAI({ apiKey });
     const prompt = `
       Eres el asistente inteligente del Sistema aFull. Recibes un arreglo de descripciones de tareas operativas o compras de insumos registradas de forma informal.
-      Tu meta es parsear esta lista y devolver un objeto JSON con una clasificación inteligente para cada elemento:
+      Tu meta es parsear esta lista y devolver un objeto JSON con una clasificaciÃ³n inteligente para cada elemento:
       1. Extraer nombre de persona (si refiere a Mano de Obra / colaborador).
-      2. Categoría (MO o Insumo o Herramientas o Logística).
-      3. Sugerencia de precio unitario sugerido (si el actual es 0) basado en valores típicos (MO: 350-500 por min, Insumos dependiente del tipo).
+      2. CategorÃ­a (MO o Insumo o Herramientas o LogÃ­stica).
+      3. Sugerencia de precio unitario sugerido (si el actual es 0) basado en valores tÃ­picos (MO: 350-500 por min, Insumos dependiente del tipo).
       
       Lista de entradas:
       ${JSON.stringify(entries.map((e, index) => ({ index, text: e.descripcion, concepto: e.concepto })))}
       
-      Devuelve ÚNICAMENTE un arreglo JSON con el siguiente formato:
+      Devuelve ÃšNICAMENTE un arreglo JSON con el siguiente formato:
       [
-        { "index": 0, "colaboradorSugerido": "Rodrigo Gómez", "categoriaSugerida": "MO", "precioSugerido": 350 }
+        { "index": 0, "colaboradorSugerido": "Rodrigo GÃ³mez", "categoriaSugerida": "MO", "precioSugerido": 350 }
       ]
     `;
 
@@ -2362,9 +2362,9 @@ app.post('/api/gemini-enrich', requireAuth, async (req, res) => {
   }
 });
 
-// ══════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  TIMER ENDPOINTS - Hybrid Server + localStorage System
-// ══════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 /**
  * POST /api/timer/start
@@ -2376,7 +2376,7 @@ app.post('/api/timer/start', requireAuth, async (req, res) => {
   if (!validation.valid) {
     return res.status(400).json({
       success: false,
-      error: { code: 'VALIDATION_ERROR', message: 'Datos inválidos para iniciar timer', details: validation.errors }
+      error: { code: 'VALIDATION_ERROR', message: 'Datos invÃ¡lidos para iniciar timer', details: validation.errors }
     } as ApiResponse);
   }
 
@@ -2448,7 +2448,7 @@ app.post('/api/timer/stop', requireAuth, async (req, res) => {
   if (!validation.valid) {
     return res.status(400).json({
       success: false,
-      error: { code: 'VALIDATION_ERROR', message: 'Datos inválidos para detener timer', details: validation.errors }
+      error: { code: 'VALIDATION_ERROR', message: 'Datos invÃ¡lidos para detener timer', details: validation.errors }
     } as ApiResponse);
   }
 
@@ -2540,7 +2540,7 @@ app.post('/api/timer/pause', requireAuth, async (req, res) => {
   if (!validation.valid) {
     return res.status(400).json({
       success: false,
-      error: { code: 'VALIDATION_ERROR', message: 'Datos inválidos para pausar timer', details: validation.errors }
+      error: { code: 'VALIDATION_ERROR', message: 'Datos invÃ¡lidos para pausar timer', details: validation.errors }
     } as ApiResponse);
   }
 
@@ -2560,7 +2560,7 @@ app.post('/api/timer/pause', requireAuth, async (req, res) => {
     if (activeTimer.isPaused) {
       return res.status(400).json({
         success: false,
-        error: { code: 'TIMER_ALREADY_PAUSED', message: 'El timer ya está pausado' }
+        error: { code: 'TIMER_ALREADY_PAUSED', message: 'El timer ya estÃ¡ pausado' }
       } as ApiResponse);
     }
 
@@ -2608,7 +2608,7 @@ app.post('/api/timer/resume', requireAuth, async (req, res) => {
   if (!validation.valid) {
     return res.status(400).json({
       success: false,
-      error: { code: 'VALIDATION_ERROR', message: 'Datos inválidos para reanudar timer', details: validation.errors }
+      error: { code: 'VALIDATION_ERROR', message: 'Datos invÃ¡lidos para reanudar timer', details: validation.errors }
     } as ApiResponse);
   }
 
@@ -2628,7 +2628,7 @@ app.post('/api/timer/resume', requireAuth, async (req, res) => {
     if (!activeTimer.isPaused || !activeTimer.currentPauseStart) {
       return res.status(400).json({
         success: false,
-        error: { code: 'TIMER_NOT_PAUSED', message: 'El timer no está pausado' }
+        error: { code: 'TIMER_NOT_PAUSED', message: 'El timer no estÃ¡ pausado' }
       } as ApiResponse);
     }
 
@@ -2726,7 +2726,7 @@ app.post('/api/timer/sync', requireAuth, async (req, res) => {
   if (!validation.valid) {
     return res.status(400).json({
       success: false,
-      error: { code: 'VALIDATION_ERROR', message: 'Datos inválidos para sincronizar timer', details: validation.errors }
+      error: { code: 'VALIDATION_ERROR', message: 'Datos invÃ¡lidos para sincronizar timer', details: validation.errors }
     } as ApiResponse);
   }
 
@@ -2765,9 +2765,9 @@ app.post('/api/timer/sync', requireAuth, async (req, res) => {
 });
 
 /**
- * ═══════════════════════════════════════════════════════════════
+ * â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
  * VEHICLE TRIP ROUTES
- * ═══════════════════════════════════════════════════════════════
+ * â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
  */
 
 /**
@@ -2808,7 +2808,7 @@ async function guardarFotosVehiculo(
 
   logger.info(`[FOTOS] SUPABASE_URL present: ${!!supabaseUrl}, SERVICE_KEY present: ${!!supabaseServiceKey}, KEY_LENGTH: ${supabaseServiceKey?.length || 0}`);
 
-  // ── Supabase Storage path (production) ──────────────────────────────────
+  // â”€â”€ Supabase Storage path (production) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (supabaseUrl && supabaseServiceKey) {
     const { createClient } = await import('@supabase/supabase-js');
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
@@ -2839,7 +2839,7 @@ async function guardarFotosVehiculo(
     };
   }
 
-  // ── Local filesystem fallback (development) ─────────────────────────────
+  // â”€â”€ Local filesystem fallback (development) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const uploadsDir = path.join(__dirname, 'uploads', 'vehiculos', registroId);
 
   const processLocalFoto = async (dataUrl: string, filename: string, relativePath: string): Promise<string> => {
@@ -2868,7 +2868,7 @@ app.post('/api/viaje/start', requireAuth, async (req, res) => {
   if (!validation.valid) {
     return res.status(400).json({
       success: false,
-      error: { code: 'VALIDATION_ERROR', message: 'Datos inválidos para iniciar viaje', details: validation.errors }
+      error: { code: 'VALIDATION_ERROR', message: 'Datos invÃ¡lidos para iniciar viaje', details: validation.errors }
     } as ApiResponse);
   }
 
@@ -2880,11 +2880,11 @@ app.post('/api/viaje/start', requireAuth, async (req, res) => {
     if (viajeExistente) {
       return res.status(400).json({
         success: false,
-        error: { code: 'VIAJE_ACTIVO', message: 'Ya tenés un viaje activo' }
+        error: { code: 'VIAJE_ACTIVO', message: 'Ya tenÃ©s un viaje activo' }
       } as ApiResponse);
     }
 
-    // Verificar existencia física del cliente
+    // Verificar existencia fÃ­sica del cliente
     const cliente = await prisma.cliente.findUnique({ where: { id: clienteId } });
     if (!cliente) {
       return res.status(400).json({
@@ -2893,7 +2893,7 @@ app.post('/api/viaje/start', requireAuth, async (req, res) => {
       } as ApiResponse);
     }
 
-    // Verificar existencia física del proyecto
+    // Verificar existencia fÃ­sica del proyecto
     const proyecto = await prisma.proyecto.findUnique({ where: { id: proyectoId } });
     if (!proyecto) {
       return res.status(400).json({
@@ -2912,7 +2912,7 @@ app.post('/api/viaje/start', requireAuth, async (req, res) => {
         ubicacionInicio: ubicacionInicio,
         fotoOdometroInicio: fotoOdometroInicio || '',
         kmInicial: new Decimal(kmInicial),
-        descripcion: descripcion || 'Viaje en vehículo',
+        descripcion: descripcion || 'Viaje en vehÃ­culo',
         activo: true,
       }
     });
@@ -2955,7 +2955,7 @@ app.post('/api/viaje/cancel', requireAuth, async (req, res) => {
   try {
     const viajeActivo = await prisma.viajeActivo.findFirst({ where: { usuario, activo: true } });
     if (!viajeActivo) {
-      return res.json({ success: true, data: { message: 'No había viaje activo' } } as ApiResponse);
+      return res.json({ success: true, data: { message: 'No habÃ­a viaje activo' } } as ApiResponse);
     }
     await prisma.viajeActivo.update({ where: { id: viajeActivo.id }, data: { activo: false } });
     auditLog({
@@ -2983,7 +2983,7 @@ app.post('/api/viaje/stop', requireAuth, async (req, res) => {
   if (!validation.valid) {
     return res.status(400).json({
       success: false,
-      error: { code: 'VALIDATION_ERROR', message: 'Datos inválidos para finalizar viaje', details: validation.errors }
+      error: { code: 'VALIDATION_ERROR', message: 'Datos invÃ¡lidos para finalizar viaje', details: validation.errors }
     } as ApiResponse);
   }
 
@@ -3089,7 +3089,7 @@ app.post('/api/viaje/stop', requireAuth, async (req, res) => {
         fecha: registroVehiculo.fecha.toISOString().substring(0, 10),
         fechaImportacion: registroVehiculo.fechaImportacion?.toISOString().substring(0, 10),
       },
-      alertas: alertaDiscrepancia ? [{ tipo: 'discrepancia', mensaje: `Diferencia de ${discrepanciaPorcentaje.toFixed(1)}% entre GPS y odómetro` }] : []
+      alertas: alertaDiscrepancia ? [{ tipo: 'discrepancia', mensaje: `Diferencia de ${discrepanciaPorcentaje.toFixed(1)}% entre GPS y odÃ³metro` }] : []
     } as ApiResponse);
   } catch (error: any) {
     logger.error('Error stopping viaje', error);
@@ -3108,7 +3108,7 @@ app.get('/api/viaje/active/:usuario', requireAuth, async (req, res) => {
   try {
     const { usuario } = req.params;
 
-    // Verificar autorización
+    // Verificar autorizaciÃ³n
     if (req.user?.rol !== 'Admin' && req.user?.usuario !== usuario) {
       return res.status(403).json({
         success: false,
@@ -3213,7 +3213,7 @@ app.get('/api/vehiculo/mis-registros', requireAuth, async (req, res) => {
     logger.error('Error reading user vehicle registros:', error);
     res.status(500).json({
       success: false,
-      error: { code: 'READ_ERROR', message: 'Error al leer registros de vehículo del usuario' }
+      error: { code: 'READ_ERROR', message: 'Error al leer registros de vehÃ­culo del usuario' }
     } as ApiResponse);
   }
 });
@@ -3240,7 +3240,7 @@ app.delete('/api/vehiculo/registro/:id', requireAuth, requireAdmin, async (req, 
     if (!registro) {
       return res.status(404).json({
         success: false,
-        error: { code: 'NOT_FOUND', message: 'Registro de vehículo no encontrado' }
+        error: { code: 'NOT_FOUND', message: 'Registro de vehÃ­culo no encontrado' }
       } as ApiResponse);
     }
 
@@ -3252,15 +3252,15 @@ app.delete('/api/vehiculo/registro/:id', requireAuth, requireAdmin, async (req, 
       recurso: `/api/vehiculo/registro/${id}`,
       resultado: 'success',
       ip: clientIp,
-      detalle: `Eliminado registro de vehículo: ${registro.proyectoNombre}`
+      detalle: `Eliminado registro de vehÃ­culo: ${registro.proyectoNombre}`
     });
 
-    res.json({ success: true, message: 'Registro de vehículo eliminado con éxito' } as ApiResponse);
+    res.json({ success: true, message: 'Registro de vehÃ­culo eliminado con Ã©xito' } as ApiResponse);
   } catch (error: any) {
     logger.error('Error deleting vehiculo registro:', error);
     res.status(500).json({
       success: false,
-      error: { code: 'DELETE_ERROR', message: 'Error al eliminar registro de vehículo' }
+      error: { code: 'DELETE_ERROR', message: 'Error al eliminar registro de vehÃ­culo' }
     } as ApiResponse);
   }
 });
@@ -3285,7 +3285,7 @@ app.put('/api/vehiculo/registro/:id', requireAuth, requireAdmin, async (req, res
   if (!validation.valid) {
     return res.status(400).json({
       success: false,
-      error: { code: 'VALIDATION_ERROR', message: 'Datos del registro inválidos', details: validation.errors }
+      error: { code: 'VALIDATION_ERROR', message: 'Datos del registro invÃ¡lidos', details: validation.errors }
     } as ApiResponse);
   }
 
@@ -3296,7 +3296,7 @@ app.put('/api/vehiculo/registro/:id', requireAuth, requireAdmin, async (req, res
     if (!existing) {
       return res.status(404).json({
         success: false,
-        error: { code: 'NOT_FOUND', message: 'Registro de vehículo no encontrado' }
+        error: { code: 'NOT_FOUND', message: 'Registro de vehÃ­culo no encontrado' }
       } as ApiResponse);
     }
 
@@ -3350,13 +3350,13 @@ app.put('/api/vehiculo/registro/:id', requireAuth, requireAdmin, async (req, res
         total: parseFloat(updated.total.toString()),
         fecha: updated.fecha.toISOString().substring(0, 10),
       },
-      message: 'Registro de vehículo actualizado con éxito'
+      message: 'Registro de vehÃ­culo actualizado con Ã©xito'
     } as ApiResponse);
   } catch (error: any) {
     logger.error('Error updating vehiculo registro:', error);
     res.status(500).json({
       success: false,
-      error: { code: 'UPDATE_ERROR', message: 'Error al actualizar registro de vehículo' }
+      error: { code: 'UPDATE_ERROR', message: 'Error al actualizar registro de vehÃ­culo' }
     } as ApiResponse);
   }
 });
@@ -3384,7 +3384,7 @@ app.patch('/api/vehiculo/registro/:id', requireAuth, requireAdmin, async (req, r
     logger.error('[PATCH VEHICULO] Validation errors:', JSON.stringify(validation.errors));
     return res.status(400).json({
       success: false,
-      error: { code: 'VALIDATION_ERROR', message: 'Datos del registro inválidos', details: validation.errors }
+      error: { code: 'VALIDATION_ERROR', message: 'Datos del registro invÃ¡lidos', details: validation.errors }
     } as ApiResponse);
   }
 
@@ -3395,7 +3395,7 @@ app.patch('/api/vehiculo/registro/:id', requireAuth, requireAdmin, async (req, r
     if (!existing) {
       return res.status(404).json({
         success: false,
-        error: { code: 'NOT_FOUND', message: 'Registro de vehículo no encontrado' }
+        error: { code: 'NOT_FOUND', message: 'Registro de vehÃ­culo no encontrado' }
       } as ApiResponse);
     }
 
@@ -3416,9 +3416,9 @@ app.patch('/api/vehiculo/registro/:id', requireAuth, requireAdmin, async (req, r
       total = patchData.precioLitro * combustibleLitros;
     }
 
-    // Handle photo updates — only upload photos that have new base64 data
+    // Handle photo updates â€” only upload photos that have new base64 data
     // IMPORTANT: never pass an existing Supabase URL as input to guardarFotosVehiculo
-    // — that function expects base64, not URLs, and passing a URL corrupts the stored file.
+    // â€” that function expects base64, not URLs, and passing a URL corrupts the stored file.
     let fotoInicio: string | undefined;
     let fotoFin: string | undefined;
 
@@ -3488,20 +3488,20 @@ app.patch('/api/vehiculo/registro/:id', requireAuth, requireAdmin, async (req, r
         total: parseFloat(updated.total.toString()),
         fecha: updated.fecha.toISOString().substring(0, 10),
       },
-      message: 'Registro de vehículo actualizado con éxito'
+      message: 'Registro de vehÃ­culo actualizado con Ã©xito'
     } as ApiResponse);
   } catch (error: any) {
     logger.error('Error patching vehiculo registro:', error);
     res.status(500).json({
       success: false,
-      error: { code: 'PATCH_ERROR', message: 'Error al actualizar registro de vehículo' }
+      error: { code: 'PATCH_ERROR', message: 'Error al actualizar registro de vehÃ­culo' }
     } as ApiResponse);
   }
 });
 
-// ═══════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // CLIENTES CRUD
-// ═══════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 app.post('/api/clientes', requireAuth, requireAdmin, async (req, res) => {
   const { nombre, codigo } = req.body;
@@ -3552,13 +3552,13 @@ app.delete('/api/clientes/:id', requireAuth, requireAdmin, async (req, res) => {
     res.json({ success: true, message: 'Cliente eliminado' } as ApiResponse);
   } catch (error: any) {
     logger.error('Error deleting cliente:', error);
-    res.status(500).json({ success: false, error: { code: 'DELETE_ERROR', message: 'Error al eliminar cliente. Verificá que no tenga proyectos o registros asociados.' } } as ApiResponse);
+    res.status(500).json({ success: false, error: { code: 'DELETE_ERROR', message: 'Error al eliminar cliente. VerificÃ¡ que no tenga proyectos o registros asociados.' } } as ApiResponse);
   }
 });
 
-// ═══════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // PROYECTOS CRUD
-// ═══════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 app.post('/api/proyectos', requireAuth, requireAdmin, async (req, res) => {
   const { clienteId, nombre, estado, fechaInicio } = req.body;
@@ -3614,13 +3614,13 @@ app.delete('/api/proyectos/:id', requireAuth, requireAdmin, async (req, res) => 
     res.json({ success: true, message: 'Proyecto eliminado' } as ApiResponse);
   } catch (error: any) {
     logger.error('Error deleting proyecto:', error);
-    res.status(500).json({ success: false, error: { code: 'DELETE_ERROR', message: 'Error al eliminar proyecto. Verificá que no tenga registros asociados.' } } as ApiResponse);
+    res.status(500).json({ success: false, error: { code: 'DELETE_ERROR', message: 'Error al eliminar proyecto. VerificÃ¡ que no tenga registros asociados.' } } as ApiResponse);
   }
 });
 
-// ═══════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // COLABORADORES CRUD
-// ═══════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 app.post('/api/colaboradores', requireAuth, requireAdmin, async (req, res) => {
   const { nombre, rol, tarifaSugerida } = req.body;
@@ -3675,16 +3675,16 @@ app.delete('/api/colaboradores/:id', requireAuth, requireAdmin, async (req, res)
   }
 });
 
-// ═══════════════════════════════════════════════════════════════
-// ADMIN CLEANUP — Eliminar duplicados de importación Excel
-// TEMPORAL: Solo accesible para Admin, eliminar después de usarlo
-// ═══════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ADMIN CLEANUP â€” Eliminar duplicados de importaciÃ³n Excel
+// TEMPORAL: Solo accesible para Admin, eliminar despuÃ©s de usarlo
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 /**
  * POST /api/admin/cleanup-duplicates
  * Encuentra clientes/proyectos duplicados por nombre y los consolida.
- * Conserva el que tiene MÁS registros asociados.
- * Reasigna registros huérfanos antes de eliminar los duplicados.
+ * Conserva el que tiene MÃS registros asociados.
+ * Reasigna registros huÃ©rfanos antes de eliminar los duplicados.
  * 
  * MODO SIMULACION (default): body sin dryRun o dryRun: true
  * MODO REAL: body con dryRun: false
@@ -3692,7 +3692,7 @@ app.delete('/api/colaboradores/:id', requireAuth, requireAdmin, async (req, res)
 app.post('/api/admin/cleanup-duplicates', requireAuth, requireAdmin, async (req, res) => {
   const clientIp = getClientIp(req);
   const userPayload = req.user!;
-  const dryRun = req.body?.dryRun !== false; // default true = simulación segura
+  const dryRun = req.body?.dryRun !== false; // default true = simulaciÃ³n segura
 
   try {
     const report: any = {
@@ -3720,7 +3720,7 @@ app.post('/api/admin/cleanup-duplicates', requireAuth, requireAdmin, async (req,
     for (const [_nombre, grupo] of clientesPorNombre) {
       if (grupo.length <= 1) continue;
 
-      // El "ganador" es el que tiene más registros totales
+      // El "ganador" es el que tiene mÃ¡s registros totales
       const ganador = grupo.reduce((best, c) => {
         const scoreB = best._count.registros + best._count.registrosVehiculo;
         const scoreC = c._count.registros + c._count.registrosVehiculo;
@@ -3759,7 +3759,7 @@ app.post('/api/admin/cleanup-duplicates', requireAuth, requireAdmin, async (req,
               p => p.nombre.toLowerCase().trim() === proj.nombre.toLowerCase().trim()
             );
             if (equiv) {
-              // Proyecto duplicado — reasignar sus registros al equivalente del ganador
+              // Proyecto duplicado â€” reasignar sus registros al equivalente del ganador
               await prisma.registro.updateMany({
                 where: { proyectoId: proj.id },
                 data: { proyectoId: equiv.id, proyectoNombre: equiv.nombre }
@@ -3771,7 +3771,7 @@ app.post('/api/admin/cleanup-duplicates', requireAuth, requireAdmin, async (req,
               await prisma.proyecto.delete({ where: { id: proj.id } });
               report.eliminados.proyectos++;
             } else {
-              // Proyecto único — reasignarlo al cliente ganador
+              // Proyecto Ãºnico â€” reasignarlo al cliente ganador
               await prisma.proyecto.update({
                 where: { id: proj.id },
                 data: { clienteId: ganador.id }
@@ -3805,7 +3805,7 @@ app.post('/api/admin/cleanup-duplicates', requireAuth, requireAdmin, async (req,
   }
 });
 
-// Servir archivos estáticos de uploads
+// Servir archivos estÃ¡ticos de uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // SECURITY Phase 2 Fix #7: Global Error Handler - Sanitize error messages

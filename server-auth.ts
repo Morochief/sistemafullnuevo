@@ -10,9 +10,7 @@ import jwt, { SignOptions } from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { Request, Response, NextFunction } from 'express';
 import { JWTPayload } from './src/types.ts';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from './src/lib/prisma.ts';
 
 // JWT Secret - REQUIRED in .env - NO FALLBACK for security
 const JWT_SECRET = process.env.JWT_SECRET;
