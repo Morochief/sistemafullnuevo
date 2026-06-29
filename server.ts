@@ -385,6 +385,106 @@ app.use('/api', (req, res, next) => {
 
 // --- AUTHENTICATION ROUTES (PUBLIC) ---
 
+// ═══════════════════════════════════════════════════════════════
+// MARCACIONES (Control Horario con Geocerca)
+// ═══════════════════════════════════════════════════════════════
+
+app.get('/api/marcacion/config', async (req, res) => {
+  try {
+    let config = await prisma.geocercaConfig.findFirst({ where: { activo: true } });
+    if (!config) {
+      config = await prisma.geocercaConfig.create({
+        data: { lat: -25.320588291024226, lng: -57.62418119104182, radioMetros: 100, activo: true }
+      });
+    }
+    res.json({ success: true, data: { lat: Number(config.lat), lng: Number(config.lng), radioMetros: config.radioMetros } });
+  } catch (error) {
+    logger.error('Error fetching geocerca config:', error);
+    res.status(500).json({ success: false, error: { code: 'CONFIG_ERROR', message: 'Error al obtener geocerca' } });
+  }
+});
+
+app.post('/api/marcacion/entrada', requireAuth, async (req, res) => {
+  const { lat, lng, precision } = req.body;
+  const up = req.user;
+  const cip = getClientIp(req);
+  const ua = req.headers['user-agent'] || '';
+  if (typeof lat !== 'number' || typeof lng !== 'number')
+    return res.status(400).json({ success: false, error: { code: 'GPS_REQUIRED', message: 'Coordenadas requeridas' } });
+  try {
+    const cfg = await prisma.geocercaConfig.findFirst({ where: { activo: true } });
+    if (!cfg) return res.status(500).json({ success: false, error: { code: 'NO_CONFIG', message: 'Sin geocerca' } });
+    const clat = Number(cfg.lat), clng = Number(cfg.lng);
+    const R = 6371000, dLat = (lat - clat)*Math.PI/180, dLng = (lng - clng)*Math.PI/180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(clat*Math.PI/180)*Math.cos(lat*Math.PI/180)*Math.sin(dLng/2)**2;
+    if (2*R*Math.atan2(Math.sqrt(a),Math.sqrt(1-a)) > cfg.radioMetros)
+      return res.status(403).json({ success: false, error: { code: 'FUERA_DE_ZONA', message: 'Fuera de zona laboral' } });
+    const ult = await prisma.marcacion.findFirst({ where: { usuario: up.usuario }, orderBy: { timestamp: 'desc' } });
+    if (ult && ult.tipo === 'ENTRADA')
+      return res.status(409).json({ success: false, error: { code: 'YA_MARCADO', message: 'Ya tenes entrada sin salida' } });
+    const crypto = require('crypto');
+    const dh = crypto.createHash('sha256').update((ua||'')+'|'+(cip||'')).digest('hex');
+    const m = await prisma.marcacion.create({
+      data: { id: 'mar'+Math.random().toString(36).substring(2,11), usuario: up.usuario, tipo: 'ENTRADA', lat: new Decimal(lat), lng: new Decimal(lng), precision: precision ? new Decimal(precision) : null, ip: cip, dispositivoHash: dh, userAgent: ua, origen: 'APP' }
+    });
+    auditLog({ usuario: up.usuario, accion: 'marcacion_entrada', recurso: '/api/marcacion/entrada', resultado: 'success', ip: cip });
+    res.status(201).json({ success: true, data: { id: m.id, timestamp: m.timestamp } });
+  } catch (e) { logger.error('Error marcando entrada:', e); res.status(500).json({ success: false, error: { code: 'MARCACION_ERROR', message: 'Error' } }); }
+});
+
+app.post('/api/marcacion/salida', requireAuth, async (req, res) => {
+  const { lat, lng, precision } = req.body;
+  const up = req.user;
+  const cip = getClientIp(req);
+  const ua = req.headers['user-agent'] || '';
+  if (typeof lat !== 'number' || typeof lng !== 'number')
+    return res.status(400).json({ success: false, error: { code: 'GPS_REQUIRED', message: 'Coordenadas requeridas' } });
+  try {
+    const cfg = await prisma.geocercaConfig.findFirst({ where: { activo: true } });
+    if (!cfg) return res.status(500).json({ success: false, error: { code: 'NO_CONFIG', message: 'Sin geocerca' } });
+    const clat = Number(cfg.lat), clng = Number(cfg.lng);
+    const R = 6371000, dLat = (lat - clat)*Math.PI/180, dLng = (lng - clng)*Math.PI/180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(clat*Math.PI/180)*Math.cos(lat*Math.PI/180)*Math.sin(dLng/2)**2;
+    if (2*R*Math.atan2(Math.sqrt(a),Math.sqrt(1-a)) > cfg.radioMetros)
+      return res.status(403).json({ success: false, error: { code: 'FUERA_DE_ZONA', message: 'Fuera de zona laboral' } });
+    const ult = await prisma.marcacion.findFirst({ where: { usuario: up.usuario }, orderBy: { timestamp: 'desc' } });
+    if (!ult || ult.tipo !== 'ENTRADA')
+      return res.status(409).json({ success: false, error: { code: 'SIN_ENTRADA', message: 'Sin entrada registrada' } });
+    const crypto = require('crypto');
+    const dh = crypto.createHash('sha256').update((ua||'')+'|'+(cip||'')).digest('hex');
+    const m = await prisma.marcacion.create({
+      data: { id: 'mar'+Math.random().toString(36).substring(2,11), usuario: up.usuario, tipo: 'SALIDA', lat: new Decimal(lat), lng: new Decimal(lng), precision: precision ? new Decimal(precision) : null, ip: cip, dispositivoHash: dh, userAgent: ua, origen: 'APP' }
+    });
+    auditLog({ usuario: up.usuario, accion: 'marcacion_salida', recurso: '/api/marcacion/salida', resultado: 'success', ip: cip });
+    res.status(201).json({ success: true, data: { id: m.id, timestamp: m.timestamp } });
+  } catch (e) { logger.error('Error marcando salida:', e); res.status(500).json({ success: false, error: { code: 'MARCACION_ERROR', message: 'Error' } }); }
+});
+
+app.get('/api/marcacion/mis-marcaciones', requireAuth, async (req, res) => {
+  const up = req.user;
+  const { desde, hasta, limite } = req.query;
+  try {
+    const w = { usuario: up.usuario };
+    if (desde || hasta) { w.timestamp = {}; if(desde) w.timestamp.gte = new Date(desde); if(hasta) w.timestamp.lte = new Date(hasta); }
+    const ms = await prisma.marcacion.findMany({ where: w, orderBy: { timestamp: 'desc' }, take: limite ? parseInt(limite) : 50 });
+    res.json({ success: true, data: ms.map(m => ({ id: m.id, tipo: m.tipo, timestamp: m.timestamp, lat: m.lat ? Number(m.lat) : null, lng: m.lng ? Number(m.lng) : null, precision: m.precision ? Number(m.precision) : null })) });
+  } catch (e) { res.status(500).json({ success: false, error: { code: 'READ_ERROR', message: 'Error' } }); }
+});
+
+app.get('/api/marcacion/admin/timeline', requireAuth, requireAdmin, async (req, res) => {
+  const { usuario, desde, hasta, limite } = req.query;
+  try {
+    const w = {};
+    if (usuario) w.usuario = usuario;
+    if (desde || hasta) { w.timestamp = {}; if(desde) w.timestamp.gte = new Date(desde); if(hasta) w.timestamp.lte = new Date(hasta); }
+    const ms = await prisma.marcacion.findMany({ where: w, orderBy: { timestamp: 'desc' }, take: limite ? parseInt(limite) : 200 });
+    const ips = {}; const ds = {};
+    for (const m of ms) { if(!ips[m.usuario]) ips[m.usuario]=new Set(); if(!ds[m.usuario]) ds[m.usuario]=new Set(); if(m.ip) ips[m.usuario].add(m.ip); if(m.dispositivoHash) ds[m.usuario].add(m.dispositivoHash); }
+    res.json({ success: true, data: ms.map(m => ({ id: m.id, usuario: m.usuario, tipo: m.tipo, timestamp: m.timestamp, lat: m.lat ? Number(m.lat) : null, lng: m.lng ? Number(m.lng) : null, ip: m.ip, dispositivoHash: m.dispositivoHash, origen: m.origen, alertas: [...(ips[m.usuario]?.size>1?['MULTIPLES_IPS']:[]), ...(ds[m.usuario]?.size>1?['MULTIPLES_DISPOSITIVOS']:[])] })) });
+  } catch (e) { res.status(500).json({ success: false, error: { code: 'READ_ERROR', message: 'Error' } }); }
+});
+
+
 /**
  * GET /api/csrf-token
 /**

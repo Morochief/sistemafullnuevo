@@ -180,6 +180,39 @@ model Usuario {
   @@map("usuarios")
 }
 
+
+
+model Marcacion {
+  id              String    @id @db.VarChar(50)
+  usuario         String    @db.VarChar(50)
+  tipo            String    @db.VarChar(10)
+  timestamp       DateTime  @default(now())
+  lat             Decimal?  @db.Decimal(10, 7)
+  lng             Decimal?  @db.Decimal(10, 7)
+  precision       Decimal?  @db.Decimal(6, 1)
+  ip              String?   @db.VarChar(45)
+  dispositivoHash String?   @map("dispositivo_hash") @db.VarChar(64)
+  userAgent       String?   @map("user_agent") @db.Text
+  origen          String    @default("APP") @db.VarChar(10)
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@index([usuario, timestamp(sort: Desc)])
+  @@index([usuario, tipo])
+  @@map("marcaciones")
+}
+
+model GeocercaConfig {
+  id          String   @id @default("default")
+  lat         Decimal  @db.Decimal(10, 7)
+  lng         Decimal  @db.Decimal(10, 7)
+  radioMetros Int      @map("radio_metros")
+  activo      Boolean  @default(true)
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("geocerca_config")
+}
+
 enum EstadoProyecto {
   PENDIENTE    @map("Pendiente")
   EN_PROCESO   @map("En Proceso")
