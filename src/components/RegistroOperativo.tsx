@@ -662,8 +662,12 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
   
   const currentUserColaborador = currentUser 
     ? data.colaboradores.find(
-        col => col.nombre.toLowerCase().includes(currentUser.nombre.toLowerCase()) ||
-               currentUser.nombre.toLowerCase().includes(col.nombre.toLowerCase())
+        col => {
+          if (!col?.nombre || !currentUser?.nombre) return false;
+          const colName = col.nombre.toLowerCase();
+          const userName = currentUser.nombre.toLowerCase();
+          return colName.includes(userName) || userName.includes(colName);
+        }
       )
     : null;
 
@@ -681,8 +685,12 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
         }
         // Fallback: match por nombre (por si el colaboradorId no está disponible aún)
         const colaborador = data.colaboradores.find(
-          col => col.nombre.toLowerCase().includes(currentUser.nombre.toLowerCase()) ||
-                 currentUser.nombre.toLowerCase().includes(col.nombre.toLowerCase())
+          col => {
+            if (!col?.nombre || !currentUser?.nombre) return false;
+            const colName = col.nombre.toLowerCase();
+            const userName = currentUser.nombre.toLowerCase();
+            return colName.includes(userName) || userName.includes(colName);
+          }
         );
         if (colaborador) {
           setSelectedColaboradorId(colaborador.id);
@@ -697,8 +705,12 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
         }
       } else if (!selectedColaboradorId) {
         const colaborador = data.colaboradores.find(
-          col => col.nombre.toLowerCase().includes(currentUser.nombre.toLowerCase()) ||
-                 currentUser.nombre.toLowerCase().includes(col.nombre.toLowerCase())
+          col => {
+            if (!col?.nombre || !currentUser?.nombre) return false;
+            const colName = col.nombre.toLowerCase();
+            const userName = currentUser.nombre.toLowerCase();
+            return colName.includes(userName) || userName.includes(colName);
+          }
         );
         if (colaborador) {
           setSelectedColaboradorId(colaborador.id);

@@ -748,9 +748,12 @@ export default function MisRegistros({ data, currentUser, onRefresh }: MisRegist
   // identidad del usuario viene de `currentUser` (nombre / rol) y este lookup es opcional.
   const currentUserColaborador = useMemo(() => {
     return data.colaboradores.find(
-      col =>
-        col.nombre.toLowerCase().includes(currentUser.nombre.toLowerCase()) ||
-        currentUser.nombre.toLowerCase().includes(col.nombre.toLowerCase())
+      col => {
+        if (!col?.nombre || !currentUser?.nombre) return false;
+        const colName = col.nombre.toLowerCase();
+        const userName = currentUser.nombre.toLowerCase();
+        return colName.includes(userName) || userName.includes(colName);
+      }
     );
   }, [data.colaboradores, currentUser.nombre]);
 
