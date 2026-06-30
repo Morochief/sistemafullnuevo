@@ -54,7 +54,8 @@ import {
   RegistroVehiculoUpdateSchema,
   RegistroVehiculoPatchSchema,
   validateSchema,
-  PasswordComplexitySchema
+  PasswordComplexitySchema,
+  ProyectoSchema
 } from './server-validation.ts';
 import { Decimal } from '@prisma/client/runtime/library';
 
@@ -3638,11 +3639,31 @@ app.delete('/api/clientes/:id', requireAuth, requireAdmin, async (req, res) => {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 app.post('/api/proyectos', requireAuth, requireAdmin, async (req, res) => {
-  const { clienteId, nombre, estado, fechaInicio } = req.body;
-  if (!nombre?.trim() || !clienteId) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Nombre y clienteId requeridos' } } as ApiResponse);
+  const validation = validateSchema(ProyectoSchema, req.body);
+  if (!validation.valid) {
+    return res.status(400).json({
+      success: false,
+      error: { code: 'VALIDATION_ERROR', message: 'Datos inválidos para crear proyecto', details: validation.errors }
+    } as ApiResponse);
+  }
+
+  const { clienteId, nombre, estado, fechaInicio } = validation.data!;
+
   try {
     const cliente = await prisma.cliente.findUnique({ where: { id: clienteId } });
     if (!cliente) return res.status(400).json({ success: false, error: { code: 'INVALID_REFERENCE', message: 'Cliente no encontrado' } } as ApiResponse);
+    
+    const existing = await prisma.proyecto.findFirst({
+      where: {
+        clienteId,
+        nombre: {
+          equals: nombre.trim(),
+          mode: 'insensitive'
+        }
+      }
+    });
+    if (existing) return res.status(400).json({ success: false, error: { code: 'DUPLICATE_NAME', message: 'Ya existe un proyecto con ese nombre para este cliente' } } as ApiResponse);
+
     const estadoEnum = estado === 'En Proceso' ? 'EN_PROCESO' as const : estado === 'Completado' ? 'COMPLETADO' as const : 'PENDIENTE' as const;
     const proyecto = await prisma.proyecto.create({
       data: {
