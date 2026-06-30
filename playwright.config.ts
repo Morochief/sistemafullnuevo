@@ -8,7 +8,7 @@ export default defineConfig({
   workers: 1,
   reporter: [['html', { open: 'never' }]],
   use: {
-    baseURL: 'http://localhost:3100',
+    baseURL: 'http://127.0.0.1:3100',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
@@ -20,7 +20,7 @@ export default defineConfig({
   ],
   webServer: {
     command: 'npx tsx server.ts',
-    url: 'http://localhost:3100',
+    url: 'http://127.0.0.1:3100',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
     env: {
