@@ -96,22 +96,32 @@ class ErrorBoundary extends Component<Props, State> {
               </details>
             )}
 
-            <div className="flex gap-3 justify-center">
-              <button
-                onClick={this.handleReset}
-                className="flex items-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-medium text-sm text-white transition-colors"
-                aria-label="Reintentar"
-              >
-                <RefreshCw className="w-4 h-4" />
-                Reintentar
-              </button>
+            <div className="flex flex-col gap-3">
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={this.handleReset}
+                  className="flex items-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-medium text-sm text-white transition-colors"
+                  aria-label="Reintentar"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Reintentar
+                </button>
+
+                <button
+                  onClick={() => window.location.reload()}
+                  className="px-5 py-3 bg-white/10 hover:bg-white/20 rounded-xl font-medium text-sm text-white transition-colors"
+                  aria-label="Recargar página"
+                >
+                  Recargar Página
+                </button>
+              </div>
 
               <button
-                onClick={() => window.location.reload()}
-                className="px-5 py-3 bg-white/10 hover:bg-white/20 rounded-lg font-medium text-sm text-white transition-colors"
-                aria-label="Recargar página"
+                onClick={this.handleLogout}
+                className="w-full py-3 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded-xl font-medium text-sm text-rose-300 transition-colors"
+                aria-label="Cerrar sesión"
               >
-                Recargar Página
+                Cerrar Sesión (Limpiar Cookie)
               </button>
             </div>
           </div>
