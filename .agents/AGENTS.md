@@ -140,6 +140,23 @@ Cuando sea necesario realizar tareas complejas, se delegará en los siguientes *
 - **Regla:** Al inyectar dinámicamente nuevas clases de colores o estilos basadas en propiedades de negocio (ej. badge `rose` para estados finalizados), el componente receptor (ej. `DataCard`) debe tener mapeadas explícitamente esas clases en su diccionario de estilos.
 - **Solución:** Si se pasa una variante de color no registrada en el diccionario de Tailwind del componente, las clases correspondientes de borde y fondo se evalúan como `undefined`, provocando que el elemento visual se renderice sin estilos (invisible o desalineado).
 
+### O. Prevención de Pérdida de Dependencias en esbuild Bundles
+- **Regla:** Cuando se compila el backend con la bandera `--packages=external`, dependencias runtime obligatorias (como `@prisma/client` y `@supabase/supabase-js`) no deben colocarse en `devDependencies`.
+- **Solución:** Mantener estos paquetes estrictamente en `dependencies`. En caso contrario, los despliegues de producción (como Render) descartarán el código de estos módulos durante el `npm prune --production`, rompiendo el arranque con errores `Cannot find module`.
+
+### P. Detección Fiel de IPs de Clientes Detrás de Proxies Inversos
+- **Regla:** Para que auditorías de seguridad o geocercas basadas en IP capturen la IP pública real del dispositivo (y no la IP interna del proxy del hosting).
+- **Solución:** Configurar explícitamente `app.set('trust proxy', 1)` en Express al arrancar en entornos de nube como Render para habilitar la lectura de las cabeceras `X-Forwarded-For`.
+
+### Q. Evitar Bucles Infinitos de Crash con Cookies Stale
+- **Regla:** Si un token o sesión JWT causa un crash en los Hooks globales del ciclo de carga inicial en la UI, el error renderizado no debe atrapar al usuario.
+- **Solución:** El componente `ErrorBoundary` siempre debe incorporar un botón de "Cerrar Sesión" que borre proactivamente las cookies del cliente mediante `POST /api/auth/logout` y lo redirija a la raíz, permitiendo una recuperación autónoma y limpia.
+
+### R. Flujos UI Síncronos y Preservación de Datos ante Errores de API
+- **Regla:** El éxito y reseteo de un formulario de administración no debe asumirse de forma anticipada ("eager").
+- **Solución:** Las notificaciones verdes de éxito, el limpiado de inputs de formularios y el cerrado de ventanas modales deben secuenciarse a la resolución exitosa (HTTP status 200) de la petición fetch. Ante errores del servidor (como nombres duplicados), los datos introducidos deben preservarse intactos y el error debe mostrarse mediante toast rojo en pantalla.
+
+
 
 
 ## 7. Estrategia y Suite de Tests de Integración
