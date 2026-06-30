@@ -37,7 +37,7 @@ interface AdminPanelProps {
   onAddCliente: (cliente: Cliente) => void;
   onEditCliente: (id: string, data: Partial<Cliente>) => Promise<void>;
   onDeleteCliente: (id: string) => Promise<void>;
-  onAddProyecto: (proyecto: Proyecto) => void;
+  onAddProyecto: (proyecto: Proyecto) => Promise<void>;
   onEditProyecto: (id: string, data: Partial<Proyecto>) => Promise<void>;
   onDeleteProyecto: (id: string) => Promise<void>;
   onAddColaborador: (colaborador: Colaborador) => void;
@@ -1077,18 +1077,22 @@ export default function AdminPanel({
   };
 
   // Create project
-  const handleCreateProject = (e: React.FormEvent) => {
+  const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProjName || !newProjClientId) return;
-    onAddProyecto({
-      id: `pro_${Math.random().toString(36).substring(2, 7)}`,
-      clienteId: newProjClientId,
-      nombre: newProjName,
-      estado: 'En Proceso',
-      fechaInicio: new Date().toISOString().substring(0, 10)
-    });
-    setNewProjName('');
-    showToast('Proyecto creado con éxito', 'success');
+    try {
+      await onAddProyecto({
+        id: `pro_${Math.random().toString(36).substring(2, 7)}`,
+        clienteId: newProjClientId,
+        nombre: newProjName,
+        estado: 'En Proceso',
+        fechaInicio: new Date().toISOString().substring(0, 10)
+      });
+      setNewProjName('');
+      showToast('Proyecto creado con éxito', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Error al crear proyecto', 'error');
+    }
   };
 
   // Create Worker

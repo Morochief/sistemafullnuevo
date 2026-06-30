@@ -371,17 +371,13 @@ function AppInner() {
 
   const handleAddProyectoObj = async (newProyecto: Proyecto) => {
     if (!dbState) return;
-    try {
-      const res = await authFetchJSON('/api/proyectos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clienteId: newProyecto.clienteId, nombre: newProyecto.nombre, estado: newProyecto.estado, fechaInicio: newProyecto.fechaInicio })
-      });
-      if (res.success && res.data) {
-        setDbState({ ...dbState, proyectos: [...dbState.proyectos, res.data] });
-      }
-    } catch (err: any) {
-      showToast('Error al crear proyecto: ' + (err.message || ''), 'error');
+    const res = await authFetchJSON('/api/proyectos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clienteId: newProyecto.clienteId, nombre: newProyecto.nombre, estado: newProyecto.estado, fechaInicio: newProyecto.fechaInicio })
+    });
+    if (res.success && res.data) {
+      setDbState({ ...dbState, proyectos: [...dbState.proyectos, res.data] });
     }
   };
 
