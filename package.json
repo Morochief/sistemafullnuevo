@@ -12,15 +12,16 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
+    "@prisma/client": "^5.22.0",
+    "@supabase/supabase-js": "^2.108.2",
     "@tailwindcss/vite": "^4.1.14",
     "@types/dompurify": "^3.0.5",
     "@vitejs/plugin-react": "^5.0.4",
-    "@prisma/client": "^5.22.0",
-    "@supabase/supabase-js": "^2.108.2",
     "async-mutex": "^0.5.0",
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
@@ -44,6 +45,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
