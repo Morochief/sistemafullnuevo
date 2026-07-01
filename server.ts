@@ -3932,11 +3932,16 @@ async function startServer() {
       appType: 'spa',
     });
     app.use(vite.middlewares);
-  } else {
     // Serve static files in production
-    const distPath = path.join(process.cwd(), 'dist');
+    const distPath = path.resolve(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
+      // Prevent browser caching of the entry HTML file so it always pulls new asset hashes
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      
+      logger.info(`[STATIC FALLBACK] Path requested: ${req.path} - Serving index.html`);
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
