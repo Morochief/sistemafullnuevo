@@ -30,6 +30,7 @@ import { DatabaseState, Cliente, Proyecto, Colaborador, RegistroItem, ApiRespons
 import { 
   requireAuth, 
   requireAdmin, 
+  requireWriteAccess,
   authenticateUser, 
   generateToken,
   optionalAuth,
@@ -407,7 +408,7 @@ app.get('/api/marcacion/config', async (req, res) => {
   }
 });
 
-app.post('/api/marcacion/entrada', requireAuth, async (req, res) => {
+app.post('/api/marcacion/entrada', requireAuth, requireWriteAccess, async (req, res) => {
   const { lat, lng, precision } = req.body;
   const up = req.user;
   const cip = getClientIp(req);
@@ -434,7 +435,7 @@ app.post('/api/marcacion/entrada', requireAuth, async (req, res) => {
   } catch (e) { logger.error('Error marcando entrada:', e); res.status(500).json({ success: false, error: { code: 'MARCACION_ERROR', message: 'Error' } }); }
 });
 
-app.post('/api/marcacion/salida', requireAuth, async (req, res) => {
+app.post('/api/marcacion/salida', requireAuth, requireWriteAccess, async (req, res) => {
   const { lat, lng, precision } = req.body;
   const up = req.user;
   const cip = getClientIp(req);
@@ -1380,7 +1381,7 @@ app.post('/api/save-state', requireAuth, async (req, res) => {
 });
 
 // Confirm bulk Excel import in a single transaction
-app.post('/api/import/confirm', requireAuth, async (req, res) => {
+app.post('/api/import/confirm', requireAuth, requireWriteAccess, async (req, res) => {
   const { clientes, proyectos, registros } = req.body;
   const clientIp = getClientIp(req);
   const userPayload = req.user!;
@@ -1541,7 +1542,7 @@ app.post('/api/import/confirm', requireAuth, async (req, res) => {
 });
 
 // Add a single registro manually
-app.post('/api/registros', requireAuth, async (req, res) => {
+app.post('/api/registros', requireAuth, requireWriteAccess, async (req, res) => {
   const validation = validateSchema(RegistroItemSchema, req.body);
   
   if (!validation.valid) {
@@ -1758,7 +1759,7 @@ app.delete('/api/registros/:id', requireAuth, async (req, res) => {
 });
 
 // Update/Edit a registro (PUT endpoint)
-app.put('/api/registros/:id', requireAuth, async (req, res) => {
+app.put('/api/registros/:id', requireAuth, requireWriteAccess, async (req, res) => {
   const id = req.params.id;
   const clientIp = getClientIp(req);
   const userPayload = req.user!;
@@ -2166,7 +2167,7 @@ function uploadSingleExcel(req: Request, res: Response, next: NextFunction) {
   });
 }
 
-app.post('/api/import-excel', requireAuth, uploadSingleExcel, async (req, res) => {
+app.post('/api/import-excel', requireAuth, requireWriteAccess, uploadSingleExcel, async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No se subiÃ³ ningÃºn archivo' });
   }
@@ -2367,7 +2368,7 @@ app.post('/api/import-excel', requireAuth, uploadSingleExcel, async (req, res) =
 });
 
 // SMART GEMINI AI ENRICHMENT (Optional smart extractions on descriptors)
-app.post('/api/gemini-enrich', requireAuth, async (req, res) => {
+app.post('/api/gemini-enrich', requireAuth, requireWriteAccess, async (req, res) => {
   const validation = validateSchema(GeminiEnrichSchema, req.body);
   
   if (!validation.valid) {
@@ -2448,7 +2449,7 @@ app.post('/api/gemini-enrich', requireAuth, async (req, res) => {
  * POST /api/timer/start
  * Start a new timer for the user
  */
-app.post('/api/timer/start', requireAuth, async (req, res) => {
+app.post('/api/timer/start', requireAuth, requireWriteAccess, async (req, res) => {
   const validation = validateSchema(TimerStartSchema, req.body);
 
   if (!validation.valid) {
@@ -2520,7 +2521,7 @@ app.post('/api/timer/start', requireAuth, async (req, res) => {
  * POST /api/timer/stop
  * Stop the active timer for the user
  */
-app.post('/api/timer/stop', requireAuth, async (req, res) => {
+app.post('/api/timer/stop', requireAuth, requireWriteAccess, async (req, res) => {
   const validation = validateSchema(TimerStopSchema, req.body);
 
   if (!validation.valid) {
@@ -2939,7 +2940,7 @@ async function guardarFotosVehiculo(
  * POST /api/viaje/start
  * Start a new vehicle trip
  */
-app.post('/api/viaje/start', requireAuth, async (req, res) => {
+app.post('/api/viaje/start', requireAuth, requireWriteAccess, async (req, res) => {
   const clientIp = getClientIp(req);
   const validation = validateSchema(ViajeStartSchema, req.body);
 
@@ -3025,7 +3026,7 @@ app.post('/api/viaje/start', requireAuth, async (req, res) => {
  * POST /api/viaje/cancel
  * Cancel (discard) the active vehicle trip without saving a registro
  */
-app.post('/api/viaje/cancel', requireAuth, async (req, res) => {
+app.post('/api/viaje/cancel', requireAuth, requireWriteAccess, async (req, res) => {
   const { usuario } = req.body;
   if (!usuario) {
     return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Usuario requerido' } } as ApiResponse);
@@ -3054,7 +3055,7 @@ app.post('/api/viaje/cancel', requireAuth, async (req, res) => {
  * POST /api/viaje/stop
  * Stop active vehicle trip
  */
-app.post('/api/viaje/stop', requireAuth, async (req, res) => {
+app.post('/api/viaje/stop', requireAuth, requireWriteAccess, async (req, res) => {
   const clientIp = getClientIp(req);
   const validation = validateSchema(ViajeStopSchema, req.body);
 
@@ -3581,7 +3582,7 @@ app.patch('/api/vehiculo/registro/:id', requireAuth, requireAdmin, async (req, r
 // CLIENTES CRUD
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-app.post('/api/clientes', requireAuth, requireAdmin, async (req, res) => {
+app.post('/api/clientes', requireAuth, requireAdmin, requireWriteAccess, async (req, res) => {
   const { nombre, codigo } = req.body;
   if (!nombre?.trim()) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Nombre requerido' } } as ApiResponse);
   try {
@@ -3601,7 +3602,7 @@ app.post('/api/clientes', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-app.put('/api/clientes/:id', requireAuth, requireAdmin, async (req, res) => {
+app.put('/api/clientes/:id', requireAuth, requireAdmin, requireWriteAccess, async (req, res) => {
   const { id } = req.params;
   const { nombre, codigo } = req.body;
   if (!nombre?.trim()) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Nombre requerido' } } as ApiResponse);
@@ -3620,7 +3621,7 @@ app.put('/api/clientes/:id', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-app.delete('/api/clientes/:id', requireAuth, requireAdmin, async (req, res) => {
+app.delete('/api/clientes/:id', requireAuth, requireAdmin, requireWriteAccess, async (req, res) => {
   const { id } = req.params;
   try {
     const existing = await prisma.cliente.findUnique({ where: { id } });
@@ -3638,7 +3639,7 @@ app.delete('/api/clientes/:id', requireAuth, requireAdmin, async (req, res) => {
 // PROYECTOS CRUD
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-app.post('/api/proyectos', requireAuth, requireAdmin, async (req, res) => {
+app.post('/api/proyectos', requireAuth, requireAdmin, requireWriteAccess, async (req, res) => {
   const validation = validateSchema(ProyectoSchema, req.body);
   if (!validation.valid) {
     return res.status(400).json({
@@ -3682,7 +3683,7 @@ app.post('/api/proyectos', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-app.put('/api/proyectos/:id', requireAuth, requireAdmin, async (req, res) => {
+app.put('/api/proyectos/:id', requireAuth, requireAdmin, requireWriteAccess, async (req, res) => {
   const { id } = req.params;
   const { nombre, estado, clienteId } = req.body;
   if (!nombre?.trim()) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Nombre requerido' } } as ApiResponse);
@@ -3702,7 +3703,7 @@ app.put('/api/proyectos/:id', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-app.delete('/api/proyectos/:id', requireAuth, requireAdmin, async (req, res) => {
+app.delete('/api/proyectos/:id', requireAuth, requireAdmin, requireWriteAccess, async (req, res) => {
   const { id } = req.params;
   try {
     const existing = await prisma.proyecto.findUnique({ where: { id } });

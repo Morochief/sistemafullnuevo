@@ -370,3 +370,11 @@ await prisma.usuario.update({ where: { username: 'rodrigo' }, data: { colaborado
 3. Si el indexOf encuentra el texto pero el replace no funciona, el problema es CRLF vs LF
 4. Solucion: buscar con `contains` (no sensible a CRLF) o normalizar el archivo primero con `c.replace(/\r\n/g, '\n')`
 **Sintoma:** El script devuelve "Pattern not found" aunque el texto exista en el archivo. El commit muestra menos cambios de los esperados.
+
+### 23. E2E Tests: Visor Role Write Enforcement & Playwright webServer Optimization
+**Problema:** Al ejecutar pruebas E2E en Windows, el webServer de Playwright usando `npx tsx server.ts` puede chocar con puertos ocupados o tardar demasiado en inicializar (timeout de 120s). Además, el rol `Visor` debe ser bloqueado estrictamente tanto en la UI (ocultando botones) como en las peticiones directas de API.
+**Regla:** 
+1. Desactivar el gestor `webServer` en `playwright.config.ts` para evitar que intente iniciar/matar el servidor en bucle bajo Windows, corriendo las pruebas directamente contra el servidor activo (en el puerto configurado).
+2. Proteger siempre todos los endpoints mutativos (`POST`, `PUT`, `DELETE` en `/api/registros`, `/api/clientes`, `/api/proyectos`) con el middleware `requireWriteAccess` además de `requireAuth` para que cualquier petición directa de API desde la consola del navegador por un `Visor` retorne `403 Forbidden`.
+**Sintoma:** Los tests E2E fallan localmente por timeout en el puerto 3100, o un usuario Visor logra saltarse las restricciones visuales haciendo fetch directo en consola.
+

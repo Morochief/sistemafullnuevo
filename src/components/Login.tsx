@@ -84,7 +84,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
             transition={{ delay: 0.1, duration: 0.4 }}
             className="h-16 w-16 bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-blue-500/30 mb-4"
           >
-            <HardHat className="w-8 h-8 text-white" />
+            <img src="/Logo-AFULL-_1_.svg" alt="aFull Logo" className="w-12 h-12 object-contain" />
           </motion.div>
           <motion.h1
             initial={{ opacity: 0, y: 10 }}

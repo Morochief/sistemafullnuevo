@@ -8,7 +8,7 @@ export default defineConfig({
   workers: 1,
   reporter: [['html', { open: 'never' }]],
   use: {
-    baseURL: 'http://127.0.0.1:3100',
+    baseURL: 'http://localhost:3100',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
@@ -18,14 +18,16 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
+  /*
   webServer: {
-    command: 'npx tsx server.ts',
-    url: 'http://127.0.0.1:3100',
+    command: 'node dist/server.mjs',
+    url: 'http://localhost:3100',
     reuseExistingServer: true,
-    timeout: 120000,
+    timeout: 60000,
     env: {
       PORT: '3100',
       NODE_ENV: 'test',
     },
   },
+  */
 });

@@ -566,8 +566,8 @@ function AppInner() {
           
           {/* Logo */}
           <div className="flex items-center gap-3 shrink-0">
-            <div className="h-9 w-9 shrink-0 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20 text-white">
-              <HardHat className="w-4.5 h-4.5" />
+            <div className="h-9 w-9 shrink-0 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
+              <img src="/Logo-AFULL-_1_.svg" alt="aFull Logo" className="w-6 h-6 object-contain" />
             </div>
             <div className="hidden sm:block">
               <span className="text-sm uppercase font-mono tracking-widest font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">

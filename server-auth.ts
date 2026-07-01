@@ -320,9 +320,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     // Always sync decrypted payload attributes with actual DB cached attributes
     payload.nombre = userDetails.nombre;
     payload.rol = userDetails.rol;
-    if (userDetails.colaboradorId) {
-      payload.colaboradorId = userDetails.colaboradorId;
-    }
+    payload.colaboradorId = userDetails.colaboradorId;
 
     if (!userDetails.activo) {
       logger.info('[AUTH] REJECTED: User is inactive or deleted:', payload.usuario);
@@ -394,5 +392,23 @@ export function optionalAuth(req: Request, res: Response, next: NextFunction) {
     // Silently fail for optional auth
   }
   
+  next();
+}
+
+/**
+ * Express Middleware: Require Write Access (blocks Visor)
+ */
+export function requireWriteAccess(req: Request, res: Response, next: NextFunction) {
+  const user = (req as any).user as JWTPayload | undefined;
+  if (user && user.rol === 'Visor') {
+    logger.info('[WRITE CHECK] REJECTED: User role is Visor');
+    return res.status(403).json({
+      success: false,
+      error: {
+        code: 'FORBIDDEN',
+        message: 'Acceso denegado: el rol Visor no permite modificar datos'
+      }
+    });
+  }
   next();
 }
