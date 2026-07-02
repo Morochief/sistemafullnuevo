@@ -4113,6 +4113,7 @@ async function startServer() {
       appType: 'spa',
     });
     app.use(vite.middlewares);
+  } else {
     // Serve static files in production
     const distPath = path.resolve(process.cwd(), 'dist');
     app.use(express.static(distPath));
