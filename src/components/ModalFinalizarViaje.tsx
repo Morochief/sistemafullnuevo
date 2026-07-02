@@ -35,21 +35,23 @@ function useCameraCapture() {
 export default function ModalFinalizarViaje({ onClose, onFinish, kmInicio, duracionSegundos }: Props) {
   const { showToast } = useNotif();
   const [kmFinal, setKmFinal] = useState('');
-  const [combustibleLitros, setCombustibleLitros] = useState('');
-  const [combustibleCosto, setCombustibleCosto] = useState('');
+  const [costoPorKm, setCostoPorKm] = useState('1400');
   const [submitting, setSubmitting] = useState(false);
   const { photo, capturePhoto, reset } = useCameraCapture();
   const inputFileRef = useRef<HTMLInputElement>(null);
   
   const distanciaOdometro = kmFinal ? parseFloat(kmFinal) - kmInicio : 0;
-  
+  const costoTotal = distanciaOdometro > 0 && costoPorKm
+    ? Math.round(distanciaOdometro * parseFloat(costoPorKm))
+    : 0;
+
   const handleSubmit = async () => {
     if (!photo) {
       showToast('Tomá una foto del odómetro final', 'warning');
       return;
     }
     
-    if (!kmFinal || !combustibleCosto) {
+    if (!kmFinal || !costoPorKm) {
       showToast('Completá todos los campos obligatorios', 'warning');
       return;
     }
@@ -59,8 +61,8 @@ export default function ModalFinalizarViaje({ onClose, onFinish, kmInicio, durac
       const result = await onFinish({
         fotoOdometroFin: photo,
         kmFinal: parseFloat(kmFinal),
-        combustibleLitros: combustibleLitros ? parseFloat(combustibleLitros) : undefined,
-        combustibleCosto: parseFloat(combustibleCosto)
+        combustibleLitros: undefined,
+        combustibleCosto: costoTotal,
       });
       
       if (result.alertas && result.alertas.length > 0) {
@@ -134,20 +136,32 @@ export default function ModalFinalizarViaje({ onClose, onFinish, kmInicio, durac
           )}
         </div>
         
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div>
-            <label className="block text-sm text-slate-400 mb-2">Combustible (L)</label>
-            <input type="number" step="0.1" value={combustibleLitros} onChange={(e) => setCombustibleLitros(e.target.value)} placeholder="15.5" className="glass-input w-full px-4 py-2.5 rounded-xl text-sm" />
-          </div>
-          <div>
-            <label className="block text-sm text-slate-400 mb-2">Costo (Gs) *</label>
-            <input type="number" step="1000" value={combustibleCosto} onChange={(e) => setCombustibleCosto(e.target.value)} placeholder="85000" className="glass-input w-full px-4 py-2.5 rounded-xl text-sm" />
-          </div>
+        <div className="mb-4">
+          <label className="block text-sm text-slate-400 mb-2">Costo por Km (Gs) *</label>
+          <input
+            type="number"
+            step="100"
+            value={costoPorKm}
+            onChange={(e) => setCostoPorKm(e.target.value)}
+            placeholder="1400"
+            className="glass-input w-full px-4 py-2.5 rounded-xl text-sm"
+          />
+          {distanciaOdometro > 0 && (
+            <div className="mt-2 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
+              <p className="text-sm text-emerald-300">
+                <span className="text-slate-400">Distancia:</span> {distanciaOdometro.toFixed(1)} km ×{' '}
+                <span className="text-slate-400">Gs.</span> {parseFloat(costoPorKm || '0').toLocaleString()}
+              </p>
+              <p className="text-lg font-bold text-emerald-400 mt-1">
+                Costo Total Estimado: Gs. {costoTotal.toLocaleString()}
+              </p>
+            </div>
+          )}
         </div>
         
         <div className="flex gap-2">
           <button type="button" onClick={onClose} className="flex-1 py-2.5 px-4 border border-white/10 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl text-sm font-semibold transition-all cursor-pointer">Cancelar</button>
-          <button type="button" onClick={handleSubmit} disabled={!photo || !kmFinal || !combustibleCosto || submitting} className="flex-1 py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-emerald-500/25 border border-white/10 transition-all cursor-pointer">
+          <button type="button" onClick={handleSubmit} disabled={!photo || !kmFinal || !costoPorKm || submitting} className="flex-1 py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-emerald-500/25 border border-white/10 transition-all cursor-pointer">
             <CheckCircle className="w-4 h-4" /> Guardar
           </button>
         </div>
