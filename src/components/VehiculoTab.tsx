@@ -9,7 +9,6 @@ import {
   Camera,
   X,
   CheckCircle,
-  AlertCircle,
   Loader,
   Play,
   Square,
@@ -199,8 +198,17 @@ function useViaje({ currentUser }: { currentUser: any }) {
             setUbicacionInicio(serverViaje.ubicacionInicio || null);
           }
         } else if (res.success && !res.data) {
-          // No viaje activo en servidor — limpiar estado local si quedó desincronizado
+          // No viaje activo en servidor — limpiar TODO el estado local incluyendo localStorage
           setViajeActivo(false);
+          setHoraInicio(null);
+          setKmInicio(null);
+          setUbicacionInicio(null);
+          try {
+            localStorage.removeItem(viajeKeyActivo);
+            localStorage.removeItem(viajeKeyInicio);
+            localStorage.removeItem(viajeKeyKmInicio);
+            localStorage.removeItem(viajeKeyUbicacion);
+          } catch {}
         }
       } catch (e) {
         console.error('Failed to load active viaje from server:', e);
@@ -398,31 +406,13 @@ export default function VehiculoTab({ selectedClienteId, selectedProyectoId, cur
         />
       )}
 
-      {mostrarModalFin && kmInicio && kmInicio > 0 && (
+      {mostrarModalFin && (
         <ModalFinalizarViaje
           onClose={() => setMostrarModalFin(false)}
           onFinish={finalizarViaje}
-          kmInicio={kmInicio}
+          kmInicio={kmInicio || 0}
           duracionSegundos={duracionSegundos}
         />
-      )}
-      {mostrarModalFin && (!kmInicio || kmInicio <= 0) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/80 backdrop-blur-md p-4">
-          <div className="glass-panel rounded-3xl p-6 max-w-md w-full text-center border border-white/10 shadow-2xl">
-            <AlertCircle className="w-12 h-12 text-amber-400 mx-auto mb-4" />
-            <h3 className="text-lg font-bold text-white mb-2">No hay viaje activo válido</h3>
-            <p className="text-sm text-slate-400 mb-4">El viaje no se inició correctamente. Recargá la página e iniciá un nuevo viaje.</p>
-            <button
-              onClick={() => {
-                forceCleanState();
-                setMostrarModalFin(false);
-              }}
-              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold transition-all cursor-pointer"
-            >
-              Cerrar y limpiar estado
-            </button>
-          </div>
-        </div>
       )}
     </div>
   );
