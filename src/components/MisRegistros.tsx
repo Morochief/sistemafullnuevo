@@ -453,9 +453,10 @@ function EditModal({
 interface RegistroCardProps {
   registro: RegistroItem;
   onEdit: (registro: RegistroItem) => void;
+  showPrices: boolean;
 }
 
-const RegistroCard = React.memo<RegistroCardProps>(({ registro, onEdit }) => {
+const RegistroCard = React.memo<RegistroCardProps>(({ registro, onEdit, showPrices }) => {
   return (
     <motion.div
       layout
@@ -554,9 +555,10 @@ RegistroCard.displayName = 'RegistroCard';
 
 interface RegistroVehiculoCardProps {
   registro: RegistroVehiculo;
+  showPrices: boolean;
 }
 
-const RegistroVehiculoCard = React.memo<RegistroVehiculoCardProps>(({ registro }) => {
+const RegistroVehiculoCard = React.memo<RegistroVehiculoCardProps>(({ registro, showPrices }) => {
   const esParticular = registro.clienteNombre === 'Viaje Particular';
 
   return (
@@ -960,6 +962,7 @@ export default function MisRegistros({ data, currentUser, onRefresh }: MisRegist
                       <RegistroVehiculoCard
                         key={registro.id}
                         registro={registro}
+                        showPrices={currentUser?.rol !== 'Operario'}
                       />
                     ))}
                   </AnimatePresence>
