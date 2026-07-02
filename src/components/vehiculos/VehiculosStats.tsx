@@ -18,10 +18,6 @@ function formatGuaranies(value: number): string {
 export default function VehiculosStats({ registrosVehiculo }: VehiculosStatsProps) {
   
   const stats = useMemo(() => {
-    const totalCombustible = registrosVehiculo.reduce((acc, r) => 
-      acc + (r.combustibleLitros || 0), 0
-    );
-    
     const totalGasto = registrosVehiculo.reduce((acc, r) => 
       acc + r.total, 0
     );
@@ -34,35 +30,30 @@ export default function VehiculosStats({ registrosVehiculo }: VehiculosStatsProp
       r.alertaDiscrepancia
     ).length;
     
-    const promedioConsumo = totalKm > 0 && totalCombustible > 0 
-      ? totalCombustible / totalKm 
-      : 0;
+    const promedioCostoPorKm = totalKm > 0 ? totalGasto / totalKm : 0;
     
     return {
-      totalCombustible,
       totalGasto,
       totalKm,
       totalAlertas,
-      promedioConsumo
+      promedioCostoPorKm
     };
   }, [registrosVehiculo]);
   
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       
-      {/* Card: Combustible Total */}
+      {/* Card: Costo/km Promedio */}
       <div className="glass-panel rounded-2xl p-4 flex items-center justify-between">
         <div>
           <p className="text-[10px] font-mono uppercase tracking-wider text-cyan-400">
-            Combustible
+            Costo/km Promedio
           </p>
           <p className="text-2xl font-bold text-white mt-1">
-            {stats.totalCombustible.toFixed(1)} L
+            {formatGuaranies(stats.promedioCostoPorKm)}
           </p>
           <p className="text-xs text-slate-500 mt-1">
-            {stats.promedioConsumo > 0 
-              ? `${stats.promedioConsumo.toFixed(3)} L/km promedio`
-              : 'Sin datos de consumo'}
+            En {registrosVehiculo.length} {registrosVehiculo.length === 1 ? 'viaje' : 'viajes'}
           </p>
         </div>
         <div className="w-12 h-12 rounded-xl bg-cyan-500/10 flex items-center justify-center">

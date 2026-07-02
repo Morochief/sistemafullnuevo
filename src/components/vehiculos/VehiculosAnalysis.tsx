@@ -95,19 +95,15 @@ export default function VehiculosAnalysis({ data }: VehiculosAnalysisProps) {
   //  MÉTRICAS CALCULADAS
   // ══════════════════════════════════════════════════════
   const metrics = useMemo(() => {
-    const totalCombustible = registrosFiltrados.reduce((acc, r) => acc + (r.combustibleLitros || 0), 0);
     const totalGasto = registrosFiltrados.reduce((acc, r) => acc + r.total, 0);
     const totalKm = registrosFiltrados.reduce((acc, r) => acc + r.distanciaOdometro, 0);
     const totalAlertas = registrosFiltrados.filter(r => r.alertaDiscrepancia).length;
-    const promedioConsumo = totalKm > 0 && totalCombustible > 0 ? totalCombustible / totalKm : 0;
     const promedioCostoPorKm = totalKm > 0 ? totalGasto / totalKm : 0;
 
     return {
-      totalCombustible,
       totalGasto,
       totalKm,
       totalAlertas,
-      promedioConsumo,
       promedioCostoPorKm,
       totalViajes: registrosFiltrados.length
     };
@@ -241,10 +237,10 @@ export default function VehiculosAnalysis({ data }: VehiculosAnalysisProps) {
             <Fuel className="w-5 h-5 text-cyan-400" />
             <span className="text-xs font-mono text-slate-500">{metrics.totalViajes} viajes</span>
           </div>
-          <p className="text-xs text-slate-400 mb-1">Combustible Total</p>
-          <p className="text-2xl font-bold text-white">{metrics.totalCombustible.toFixed(1)} L</p>
+          <p className="text-xs text-slate-400 mb-1">Costo/km Promedio</p>
+          <p className="text-2xl font-bold text-white">{formatGuaranies(metrics.promedioCostoPorKm)}</p>
           <p className="text-xs text-cyan-400 mt-1">
-            {metrics.promedioConsumo > 0 ? `${metrics.promedioConsumo.toFixed(3)} L/km` : 'Sin datos'}
+            {metrics.promedioCostoPorKm > 0 ? `${formatGuaranies(metrics.promedioCostoPorKm)}/km` : 'Sin datos'}
           </p>
         </div>
 

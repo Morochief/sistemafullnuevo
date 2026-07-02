@@ -275,7 +275,8 @@ export default function VehiculosAdminView({ data, onRefresh, initialEditId }: P
     viajes: registrosVehiculo.length,
     kmTotal: registrosVehiculo.reduce((acc, r) => acc + r.distanciaOdometro, 0),
     costoTotal: registrosVehiculo.reduce((acc, r) => acc + r.total, 0),
-    litrosTotal: registrosVehiculo.reduce((acc, r) => acc + (r.combustibleLitros || 0), 0),
+    costoPorKmPromedio: registrosVehiculo.reduce((acc, r) => acc + r.total, 0) /
+      (registrosVehiculo.reduce((acc, r) => acc + r.distanciaOdometro, 0) || 1),
     alertas: registrosVehiculo.filter(r => r.alertaDiscrepancia).length
   };
 
@@ -342,9 +343,9 @@ export default function VehiculosAdminView({ data, onRefresh, initialEditId }: P
           <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl">
             <div className="flex items-center gap-2 text-amber-400 text-xs mb-2">
               <Fuel className="w-4 h-4" />
-              <span className="uppercase font-mono">Litros</span>
+              <span className="uppercase font-mono">Costo/km Promedio</span>
             </div>
-            <div className="text-2xl font-bold text-white">{totales.litrosTotal.toFixed(1)}</div>
+            <div className="text-2xl font-bold text-white">{formatGuaranies(totales.costoPorKmPromedio)}<span className="text-lg text-slate-400">/km</span></div>
           </div>
 
           <div className="p-4 bg-violet-500/10 border border-violet-500/20 rounded-xl">
@@ -1030,10 +1031,12 @@ function ViajeCard({ registro, onVerFoto, onEdit, onDelete }: ViajeCardProps) {
                 <div className="p-3 bg-white/5 rounded-lg">
                   <div className="flex items-center gap-1.5 text-amber-400 mb-1">
                     <Fuel className="w-3.5 h-3.5" />
-                    <span className="text-[10px] uppercase font-mono">Combustible</span>
+                    <span className="text-[10px] uppercase font-mono">Costo/km</span>
                   </div>
                   <p className="text-lg font-bold text-white">
-                    {registro.combustibleLitros ? `${registro.combustibleLitros.toFixed(1)} L` : '-'}
+                    {registro.total && registro.distanciaOdometro > 0
+                      ? `${formatGuaranies(registro.total / registro.distanciaOdometro)}`
+                      : formatGuaranies(registro.total)}
                   </p>
                 </div>
 
@@ -1046,17 +1049,18 @@ function ViajeCard({ registro, onVerFoto, onEdit, onDelete }: ViajeCardProps) {
                 </div>
               </div>
 
-              {/* Consumo */}
-              {registro.consumoPorKm && (
-                <div className="p-3 bg-violet-500/10 border border-violet-500/20 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4 text-violet-400" />
-                    <span className="text-xs font-bold text-violet-300">
-                      Consumo: {registro.consumoPorKm.toFixed(2)} L/km
-                    </span>
-                  </div>
+              {/* Costo */}
+              <div className="p-3 bg-violet-500/10 border border-violet-500/20 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-violet-400" />
+                  <span className="text-xs font-bold text-violet-300">
+                    Costo total: {formatGuaranies(registro.total)}
+                    {registro.distanciaOdometro > 0 && (
+                      <> — {formatGuaranies(Math.round(registro.total / registro.distanciaOdometro))}/km</>
+                    )}
+                  </span>
                 </div>
-              )}
+              </div>
 
               {/* Fotos del Odómetro */}
               <div>

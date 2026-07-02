@@ -282,10 +282,10 @@ export default function Dashboard({ data, onNavigateImport, onDeleteRegistro, on
       proyectoNombre: v.proyectoNombre,
       fecha: v.fecha,
       concepto: 'Vehículo' as any, // Extended type
-      descripcion: `Viaje: ${v.proyectoNombre} - ${v.distanciaOdometro}km - ${v.combustibleLitros || 0}L`,
+      descripcion: `Viaje: ${v.proyectoNombre} - ${v.distanciaOdometro}km`,
       cantidad: v.distanciaOdometro, // km traveled
-      precioUnitario: v.distanciaOdometro > 0 ? v.combustibleCosto / v.distanciaOdometro : 0,
-      total: v.combustibleCosto,
+      precioUnitario: v.distanciaOdometro > 0 ? v.total / v.distanciaOdometro : 0,
+      total: v.total,
       origen: v.origen,
       fechaImportacion: v.fechaImportacion
     }));
