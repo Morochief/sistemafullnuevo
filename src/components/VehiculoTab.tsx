@@ -329,6 +329,22 @@ export default function VehiculoTab({ selectedClienteId, selectedProyectoId, cur
 
   const [mostrarModalInicio, setMostrarModalInicio] = useState(false);
   const [mostrarModalFin, setMostrarModalFin] = useState(false);
+  const [serverKmInicio, setServerKmInicio] = useState<number | null>(null);
+  const [serverDuracion, setServerDuracion] = useState(0);
+  const [serverHoraInicio, setServerHoraInicio] = useState<Date | null>(null);
+
+  const handleFinalizarClick = async () => {
+    // Primero obtener los datos reales del servidor
+    try {
+      const res = await authFetchJSON<{ success: boolean; data: any }>(`/api/viaje/active/${currentUser?.usuario}`);
+      if (res.success && res.data) {
+        setServerKmInicio(res.data.kmInicial);
+        setServerHoraInicio(new Date(res.data.inicio));
+        setServerDuracion(Math.floor((new Date().getTime() - new Date(res.data.inicio).getTime()) / 1000));
+      }
+    } catch {}
+    setMostrarModalFin(true);
+  };
 
   return (
     <div className="space-y-4">
@@ -375,7 +391,7 @@ export default function VehiculoTab({ selectedClienteId, selectedProyectoId, cur
           </div>
           
           <button
-            onClick={() => setMostrarModalFin(true)}
+            onClick={handleFinalizarClick}
             className="w-full mt-4 py-3 px-6 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold flex items-center justify-center gap-2 transition"
           >
             <Square className="w-4 h-4" /> Finalizar Viaje
@@ -410,8 +426,8 @@ export default function VehiculoTab({ selectedClienteId, selectedProyectoId, cur
         <ModalFinalizarViaje
           onClose={() => setMostrarModalFin(false)}
           onFinish={finalizarViaje}
-          kmInicio={kmInicio || 0}
-          duracionSegundos={duracionSegundos}
+          kmInicio={serverKmInicio || kmInicio || 0}
+          duracionSegundos={serverDuracion || duracionSegundos}
         />
       )}
     </div>
