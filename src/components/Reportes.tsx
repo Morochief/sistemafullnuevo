@@ -56,9 +56,32 @@ export default function Reportes({ data, markupRate, onMarkupChange }: ReportesP
   const [selectedProyectoFactura, setSelectedProyectoFactura] = useState('');
   const [customMarkup, setCustomMarkup] = useState(markupRate * 100);
 
+  // --- UNIFIED DATA: MO/Insumos + Vehículos ---
+  const unifiedRegistros = useMemo(() => {
+    const vehicleAsRegistros: RegistroItem[] = (data.registrosVehiculo || []).map(v => ({
+      id: v.id,
+      clienteId: v.clienteId,
+      clienteNombre: v.clienteNombre,
+      proyectoId: v.proyectoId,
+      proyectoNombre: v.proyectoNombre,
+      fecha: v.fecha,
+      concepto: 'Vehículo' as any,
+      descripcion: `Viaje: ${v.proyectoNombre} - ${v.distanciaOdometro}km`,
+      cantidad: v.distanciaOdometro,
+      precioUnitario: v.distanciaOdometro > 0 ? Math.round(v.total / v.distanciaOdometro) : 0,
+      total: v.total,
+      hsInicio: undefined,
+      hsFin: undefined,
+      hsTotal: undefined,
+      origen: v.origen,
+      fechaImportacion: v.fechaImportacion,
+    }));
+    return [...data.registros, ...vehicleAsRegistros];
+  }, [data.registros, data.registrosVehiculo]);
+
   // --- FILTER LOGIC ---
   const filteredRegistros = useMemo(() => {
-    return data.registros.filter(r => {
+    return unifiedRegistros.filter(r => {
       if (filterCliente && r.clienteId !== filterCliente) return false;
       if (filterProyecto && r.proyectoId !== filterProyecto) return false;
       if (filterConcepto && r.concepto !== filterConcepto) return false;
@@ -66,7 +89,7 @@ export default function Reportes({ data, markupRate, onMarkupChange }: ReportesP
       if (filterFechaHasta && r.fecha > filterFechaHasta) return false;
       return true;
     });
-  }, [data.registros, filterCliente, filterProyecto, filterConcepto, filterFechaDesde, filterFechaHasta]);
+  }, [unifiedRegistros, filterCliente, filterProyecto, filterConcepto, filterFechaDesde, filterFechaHasta]);
 
   const totalFiltrado = useMemo(() => filteredRegistros.reduce((acc, r) => acc + r.total, 0), [filteredRegistros]);
   const totalMOFiltrado = useMemo(() => filteredRegistros.filter(r => r.concepto === 'MO').reduce((acc, r) => acc + r.total, 0), [filteredRegistros]);
@@ -120,8 +143,8 @@ export default function Reportes({ data, markupRate, onMarkupChange }: ReportesP
 
   const registrosFactura = useMemo(() => {
     if (!selectedProyectoFactura) return [];
-    return data.registros.filter(r => r.proyectoId === selectedProyectoFactura);
-  }, [data.registros, selectedProyectoFactura]);
+    return unifiedRegistros.filter(r => r.proyectoId === selectedProyectoFactura);
+  }, [unifiedRegistros, selectedProyectoFactura]);
 
   const costoBaseFactura = useMemo(() => registrosFactura.reduce((acc, r) => acc + r.total, 0), [registrosFactura]);
   const markupDecimal = customMarkup / 100;
@@ -130,6 +153,7 @@ export default function Reportes({ data, markupRate, onMarkupChange }: ReportesP
 
   const moFactura = registrosFactura.filter(r => r.concepto === 'MO').reduce((a, r) => a + r.total, 0);
   const insumosFactura = registrosFactura.filter(r => r.concepto === 'Insumo').reduce((a, r) => a + r.total, 0);
+  const vehiculosFactura = registrosFactura.filter(r => r.concepto === 'Vehículo').reduce((a, r) => a + r.total, 0);
   const otrosFactura = registrosFactura.filter(r => r.concepto === 'Otros').reduce((a, r) => a + r.total, 0);
 
   return (
@@ -241,6 +265,7 @@ export default function Reportes({ data, markupRate, onMarkupChange }: ReportesP
                     <option value="">Todos</option>
                     <option value="MO">Mano de Obra</option>
                     <option value="Insumo">Insumos</option>
+                    <option value="Vehículo">Vehículos</option>
                     <option value="Otros">Otros</option>
                   </select>
                 </div>
@@ -502,6 +527,7 @@ export default function Reportes({ data, markupRate, onMarkupChange }: ReportesP
                   {[
                     { label: 'Mano de Obra (MO)', value: moFactura, color: 'text-blue-400' },
                     { label: 'Insumos y Materiales', value: insumosFactura, color: 'text-cyan-400' },
+                    { label: 'Vehículos', value: vehiculosFactura, color: 'text-amber-400' },
                     { label: 'Otros', value: otrosFactura, color: 'text-slate-400' },
                   ].map(item => (
                     <div key={item.label} className="flex justify-between items-center py-2 border-b border-white/5">
