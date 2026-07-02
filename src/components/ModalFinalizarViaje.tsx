@@ -70,8 +70,8 @@ export default function ModalFinalizarViaje({ onClose, onFinish, kmInicio, durac
       }
       
       onClose();
-    } catch (error) {
-      showToast('Error al finalizar viaje', 'error');
+    } catch (error: any) {
+      showToast('Error al finalizar viaje: ' + (error.message || error), 'error');
       setSubmitting(false);
     }
   };
