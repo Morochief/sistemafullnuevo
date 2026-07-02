@@ -1271,8 +1271,8 @@ export default function RegistroOperativo({ data, onAddRegistro, onRefresh, curr
 
               {/* Formulario MO */}
               <div className="space-y-4 pt-2">
-                {/* Colaborador */}
-                <div>
+                {/* Colaborador - hidden for Operario */}
+                {currentUser?.rol !== 'Operario' && (<div>
                   <label className="text-xs font-mono uppercase tracking-wider text-slate-400 mb-2 block flex items-center gap-2">
                     Colaborador
                     {!canChangeColaborador && (
@@ -1284,7 +1284,7 @@ export default function RegistroOperativo({ data, onAddRegistro, onRefresh, curr
                   </label>
                   {canChangeColaborador ? (
                     <div className="relative">
-                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none z-10" />
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events none z-10" />
                       <select
                         value={selectedColaboradorId}
                         onChange={e => setSelectedColaboradorId(e.target.value)}
@@ -1301,7 +1301,7 @@ export default function RegistroOperativo({ data, onAddRegistro, onRefresh, curr
                     </div>
                   ) : (
                     <div className="relative">
-                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none z-10" />
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events none z-10" />
                       <div className="w-full rounded-xl pl-10 pr-4 py-3 text-sm text-white bg-slate-800/70 border-2 border-white/10 flex items-center gap-2">
                         <span className="flex-1">
                           {currentUser?.nombre || 'Usuario actual'}
@@ -1314,7 +1314,7 @@ export default function RegistroOperativo({ data, onAddRegistro, onRefresh, curr
                       </div>
                     </div>
                   )}
-                </div>
+                </div>)}
 
                 {/* Descripción */}
                 <div>
