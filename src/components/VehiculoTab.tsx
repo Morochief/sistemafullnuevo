@@ -403,7 +403,16 @@ export default function VehiculoTab({ selectedClienteId, selectedProyectoId, cur
             <h3 className="text-lg font-bold text-white mb-2">No hay viaje activo válido</h3>
             <p className="text-sm text-slate-400 mb-4">El viaje no se inició correctamente. Recargá la página e iniciá un nuevo viaje.</p>
             <button
-              onClick={() => { setMostrarModalFin(false); cancelarViaje(); }}
+              onClick={() => {
+                // Limpiar estado local forzosamente sin esperar API
+                setViajeActivo(false);
+                setHoraInicio(null);
+                setKmInicio(null);
+                setUbicacionInicio(null);
+                setDuracionSegundos(0);
+                clearLocalStorage();
+                setMostrarModalFin(false);
+              }}
               className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold transition-all cursor-pointer"
             >
               Cerrar y limpiar estado
