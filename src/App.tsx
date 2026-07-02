@@ -231,12 +231,17 @@ function AppInner() {
   const handleDeleteRegistro = async (id: string) => {
     if (!dbState) return;
     try {
-      await authFetch(`/api/registros/${id}`, { method: 'DELETE' });
+      const endpoint = id.startsWith('regveh_') ? `/api/vehiculo/registro/${id}` : `/api/registros/${id}`;
+      await authFetch(endpoint, { method: 'DELETE' });
       // Force new array reference to trigger React re-render
       const updatedRegistros = dbState.registros.filter(r => r.id !== id);
+      const updatedRegistrosVehiculo = id.startsWith('regveh_')
+        ? dbState.registrosVehiculo.filter(r => r.id !== id)
+        : dbState.registrosVehiculo;
       setDbState({ 
         ...dbState, 
-        registros: updatedRegistros 
+        registros: updatedRegistros,
+        registrosVehiculo: updatedRegistrosVehiculo,
       });
     } catch (err: any) {
       console.error(err);
