@@ -144,7 +144,7 @@ function useGPS() {
 }
 
 // Hook para viaje — hybrid persistence (localStorage + server, igual que useTimer)
-function useViaje({ currentUser }: { currentUser: any }) {
+function useViaje({ currentUser, onRefresh }: { currentUser: any, onRefresh?: () => Promise<void> }) {
   const viajePrefix = `afull_viaje_${currentUser?.usuario || 'guest'}`;
   const viajeKeyActivo    = `${viajePrefix}_activo`;
   const viajeKeyInicio    = `${viajePrefix}_inicio`;
@@ -325,7 +325,7 @@ export default function VehiculoTab({ selectedClienteId, selectedProyectoId, cur
     finalizarViaje,
     cancelarViaje,
     forceCleanState,
-  } = useViaje({ currentUser });
+  } = useViaje({ currentUser, onRefresh });
 
   const [mostrarModalInicio, setMostrarModalInicio] = useState(false);
   const [mostrarModalFin, setMostrarModalFin] = useState(false);
