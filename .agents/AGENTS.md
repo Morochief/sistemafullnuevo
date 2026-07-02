@@ -398,3 +398,8 @@ await prisma.usuario.update({ where: { username: 'rodrigo' }, data: { colaborado
 ### 29. Restricción de Métricas Financieras en UI (RBAC de Datos Confidenciales)
 **Problema:** Mostrar el valor de las tarifas horarias y el total de costos de mano de obra a los operarios en sus módulos personales expone datos de facturación administrativa interna.
 **Regla:** Ocultar condicionalmente en el frontend todas las leyendas de costos, columnas de "Precio Unitario", subtotales de dinero, inputs de modificación de tarifa y tarjetas KPI de acumulados financieros si el usuario logueado no posee privilegios administrativos (ej. `currentUser.rol === 'Operario'`). Estos usuarios deben trabajar exclusivamente con unidades físicas (como minutos, horas y descripciones).
+
+### 30. Estrategia de Caché del Service Worker (PWA MIME Type Script Error)
+**Problema:** Al cachear de forma permanente la página de entrada (`index.html`) en el Service Worker, los nuevos despliegues de producción rompen la aplicación. El navegador sirve el HTML viejo desde la caché del cliente, el cual solicita bundles JS/CSS obsoletos que ya no existen en el servidor. El servidor responde a estos recursos con el fallback `index.html` (MIME Type `text/html`), provocando que la carga del script del módulo falle por error de tipo de medio estricto en el navegador.
+**Regla:** El Service Worker (`sw.js`) debe implementar una estrategia **Network-First** para los archivos de carga y navegación (`/` y `index.html`), asegurando obtener el HTML con los nombres de bundle compilados más recientes si hay conexión. La estrategia **Cache-First** se debe restringir a los assets locales en `/assets/` que contienen hashes únicos en sus nombres.
+
