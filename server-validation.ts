@@ -62,8 +62,8 @@ export const RegistroItemSchema = z.object({
   hsFin: z.string().optional().transform(v => v ? v.substring(0, 5) : v),
   hsTotal: z.number().nonnegative('Horas totales no pueden ser negativas').optional(),
   cantidad: z.number().positive('Cantidad debe ser mayor a 0'),
-  precioUnitario: z.number().positive('Precio unitario debe ser mayor a 0'),
-  total: z.number().positive('Total debe ser mayor a 0')
+  precioUnitario: z.number().nonnegative('Precio unitario no puede ser negativo'),
+  total: z.number().nonnegative('Total no puede ser negativo')
 });
 
 /**

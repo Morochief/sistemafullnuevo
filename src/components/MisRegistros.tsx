@@ -903,7 +903,7 @@ export default function MisRegistros({ data, currentUser, onRefresh }: MisRegist
           <p className="text-white font-semibold">{currentUser.nombre}</p>
           <p className="text-xs text-slate-400">
             {currentUser.rol}
-            {currentUserColaborador?.tarifaSugerida != null && (
+            {currentUser?.rol !== 'Operario' && currentUserColaborador?.tarifaSugerida != null && (
               <> • Tarifa: {formatGuaranies(currentUserColaborador.tarifaSugerida)}/min</>
             )}
           </p>

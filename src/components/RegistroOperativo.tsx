@@ -551,7 +551,7 @@ function useTimer({ currentUser }: UseTimerOptions) {
  * Custom Hook: useInsumos
  * Maneja toda la lógica de las líneas de insumos
  */
-function useInsumos() {
+function useInsumos(isOperario: boolean = false) {
   const [insumoLines, setInsumoLines] = useState<InsumoLine[]>([
     { id: generateId('ins'), descripcion: '', cantidad: 1, precioUnitario: 0 },
   ]);
@@ -573,7 +573,11 @@ function useInsumos() {
   }, []);
 
   const totalInsumos = insumoLines.reduce((acc, l) => acc + (l.cantidad * l.precioUnitario), 0);
-  const validLines = insumoLines.filter(l => l.descripcion.trim() && l.cantidad > 0 && l.precioUnitario > 0);
+  const validLines = insumoLines.filter(l => 
+    l.descripcion.trim() && 
+    l.cantidad > 0 && 
+    (isOperario ? true : l.precioUnitario > 0)
+  );
 
   return {
     insumoLines,
@@ -812,7 +816,7 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
     resetInsumos,
     totalInsumos,
     validLines,
-  } = useInsumos();
+  } = useInsumos(currentUser?.rol === 'Operario');
 
   const [insumosSubmitting, setInsumosSubmitting] = useState(false);
   const [insumosFeedback, setInsumosFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
@@ -828,7 +832,12 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
       return;
     }
     if (validLines.length === 0) {
-      setInsumosFeedback({ type: 'error', msg: 'Ingresá al menos un insumo con descripción y precio.' });
+      setInsumosFeedback({
+        type: 'error',
+        msg: currentUser?.rol === 'Operario'
+          ? 'Ingresá al menos un insumo con descripción y cantidad.'
+          : 'Ingresá al menos un insumo con descripción y precio.'
+      });
       return;
     }
 
@@ -852,7 +861,10 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
 
     setInsumosSubmitting(false);
     if (allOk) {
-      setInsumosFeedback({ type: 'success', msg: `✓ ${validLines.length} insumo(s) registrados — Total: ${formatGuaranies(totalInsumos)}` });
+      setInsumosFeedback({
+        type: 'success',
+        msg: `✓ ${validLines.length} insumo(s) registrados${currentUser?.rol !== 'Operario' ? ` — Total: ${formatGuaranies(totalInsumos)}` : ''}`
+      });
       resetInsumos();
     } else {
       setInsumosFeedback({ type: 'error', msg: 'Algunos insumos no se pudieron guardar.' });
@@ -1409,10 +1421,14 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-semibold text-white text-lg">Materiales y Gastos Operativos</h3>
-                  <p className="text-xs text-slate-500 mt-1">Agregá líneas de insumos con cantidad y precio</p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {currentUser?.rol === 'Operario'
+                      ? 'Agregá líneas de insumos con cantidad'
+                      : 'Agregá líneas de insumos con cantidad y precio'}
+                  </p>
                 </div>
                 <AnimatePresence>
-                  {totalInsumos > 0 && (
+                  {currentUser?.rol !== 'Operario' && totalInsumos > 0 && (
                     <motion.div
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
@@ -1429,10 +1445,14 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
               {/* Tabla de insumos */}
               <div className="space-y-3">
                 <div className="grid grid-cols-12 gap-2 px-2">
-                  <span className="col-span-5 text-[9px] font-mono uppercase tracking-wider text-slate-600">Descripción</span>
-                  <span className="col-span-2 text-[9px] font-mono uppercase tracking-wider text-slate-600 text-center">Cantidad</span>
-                  <span className="col-span-3 text-[9px] font-mono uppercase tracking-wider text-slate-600 text-right">Precio Unit. (Gs.)</span>
-                  <span className="col-span-2 text-[9px] font-mono uppercase tracking-wider text-slate-600 text-right">Subtotal</span>
+                  <span className={`${currentUser?.rol === 'Operario' ? 'col-span-9' : 'col-span-5'} text-[9px] font-mono uppercase tracking-wider text-slate-600`}>Descripción</span>
+                  <span className={`${currentUser?.rol === 'Operario' ? 'col-span-3' : 'col-span-2'} text-[9px] font-mono uppercase tracking-wider text-slate-600 text-center`}>Cantidad</span>
+                  {currentUser?.rol !== 'Operario' && (
+                    <>
+                      <span className="col-span-3 text-[9px] font-mono uppercase tracking-wider text-slate-600 text-right">Precio Unit. (Gs.)</span>
+                      <span className="col-span-2 text-[9px] font-mono uppercase tracking-wider text-slate-600 text-right">Subtotal</span>
+                    </>
+                  )}
                 </div>
 
                 <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
@@ -1450,7 +1470,7 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
                           className="grid grid-cols-12 gap-2 items-center bg-white/5 rounded-xl p-2 border border-white/5 hover:border-white/10 transition-colors"
                         >
                           {/* Descripción */}
-                          <div className="col-span-5">
+                          <div className={currentUser?.rol === 'Operario' ? 'col-span-9' : 'col-span-5'}>
                             <input
                               type="text"
                               value={line.descripcion}
@@ -1461,7 +1481,7 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
                             />
                           </div>
                           {/* Cantidad */}
-                          <div className="col-span-2">
+                          <div className={currentUser?.rol === 'Operario' ? 'col-span-3 flex items-center gap-2' : 'col-span-2'}>
                             <input
                               type="number"
                               value={line.cantidad}
@@ -1471,25 +1491,7 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
                               step="0.5"
                               className="glass-input w-full rounded-lg px-2.5 py-2.5 text-sm text-center border-0 focus:ring-2 focus:ring-cyan-500/30"
                             />
-                          </div>
-                          {/* Precio */}
-                          <div className="col-span-3">
-                            <input
-                              type="number"
-                              value={line.precioUnitario || ''}
-                              onChange={e => updateInsumoLine(line.id, 'precioUnitario', parseFloat(e.target.value) || 0)}
-                              onKeyDown={handleKeyDown}
-                              placeholder="0"
-                              min="0"
-                              className="glass-input w-full rounded-lg px-2.5 py-2.5 text-sm text-right border-0 focus:ring-2 focus:ring-cyan-500/30"
-                            />
-                          </div>
-                          {/* Subtotal + delete */}
-                          <div className="col-span-2 flex items-center justify-end gap-2 pr-1">
-                            <span className="font-mono text-sm text-slate-300 text-right shrink-0">
-                              {subtotal > 0 ? formatGuaranies(subtotal) : '—'}
-                            </span>
-                            {insumoLines.length > 1 && (
+                            {currentUser?.rol === 'Operario' && insumoLines.length > 1 && (
                               <button
                                 type="button"
                                 onClick={() => removeInsumoLine(line.id)}
@@ -1499,6 +1501,38 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
                               </button>
                             )}
                           </div>
+                          {/* Precio & Subtotal (Admin/Visor only) */}
+                          {currentUser?.rol !== 'Operario' && (
+                            <>
+                              {/* Precio */}
+                              <div className="col-span-3">
+                                <input
+                                  type="number"
+                                  value={line.precioUnitario || ''}
+                                  onChange={e => updateInsumoLine(line.id, 'precioUnitario', parseFloat(e.target.value) || 0)}
+                                  onKeyDown={handleKeyDown}
+                                  placeholder="0"
+                                  min="0"
+                                  className="glass-input w-full rounded-lg px-2.5 py-2.5 text-sm text-right border-0 focus:ring-2 focus:ring-cyan-500/30"
+                                />
+                              </div>
+                              {/* Subtotal + delete */}
+                              <div className="col-span-2 flex items-center justify-end gap-2 pr-1">
+                                <span className="font-mono text-sm text-slate-300 text-right shrink-0">
+                                  {subtotal > 0 ? formatGuaranies(subtotal) : '—'}
+                                </span>
+                                {insumoLines.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => removeInsumoLine(line.id)}
+                                    className="text-slate-600 hover:text-rose-400 transition-colors p-1 shrink-0 rounded hover:bg-rose-500/10"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
+                            </>
+                          )}
                         </motion.div>
                       );
                     })}
@@ -1523,12 +1557,14 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
                 <span className="text-sm text-slate-500 font-mono">
                   {validLines.length} de {insumoLines.length} línea(s) válida(s)
                 </span>
-                <div className="text-right">
-                  <span className="text-xs text-slate-600 block mb-1">Total a Registrar</span>
-                  <span className="font-mono font-bold text-white text-2xl">
-                    {formatGuaranies(totalInsumos)}
-                  </span>
-                </div>
+                {currentUser?.rol !== 'Operario' && (
+                  <div className="text-right">
+                    <span className="text-xs text-slate-600 block mb-1">Total a Registrar</span>
+                    <span className="font-mono font-bold text-white text-2xl">
+                      {formatGuaranies(totalInsumos)}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Feedback Insumos */}
