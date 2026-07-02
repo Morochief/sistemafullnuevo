@@ -3410,13 +3410,7 @@ app.put('/api/vehiculo/registro/:id', requireAuth, requireAdmin, async (req, res
       ? Math.abs((distanciaOdometro - existingDistanciaGPS) / existingDistanciaGPS) * 100
       : 0;
     const alertaDiscrepancia = discrepancia > 20;
-    const consumoPorKm = updatedData.combustibleLitros && distanciaOdometro > 0
-      ? updatedData.combustibleLitros / distanciaOdometro
-      : undefined;
-    let total = updatedData.total;
-    if (updatedData.precioLitro && updatedData.combustibleLitros) {
-      total = updatedData.precioLitro * updatedData.combustibleLitros;
-    }
+    const total = updatedData.total;
 
     const updated = await prisma.registroVehiculo.update({
       where: { id },
@@ -3424,10 +3418,8 @@ app.put('/api/vehiculo/registro/:id', requireAuth, requireAdmin, async (req, res
         kmInicial: new Decimal(updatedData.kmInicial),
         kmFinal: new Decimal(updatedData.kmFinal),
         distanciaOdometro: new Decimal(Math.round(distanciaOdometro * 10) / 10),
-        combustibleLitros: updatedData.combustibleLitros ? new Decimal(updatedData.combustibleLitros) : null,
         combustibleCosto: new Decimal(total),
         total: new Decimal(total),
-        consumoPorKm: consumoPorKm ? new Decimal(Math.round(consumoPorKm * 10000) / 10000) : null,
         discrepancia: new Decimal(Math.round(discrepancia * 10) / 10),
         alertaDiscrepancia,
         descripcion: updatedData.descripcion,
@@ -3505,20 +3497,13 @@ app.patch('/api/vehiculo/registro/:id', requireAuth, requireAdmin, async (req, r
 
     const kmInicial = patchData.kmInicial ?? parseFloat(existing.kmInicial.toString());
     const kmFinal = patchData.kmFinal ?? parseFloat(existing.kmFinal.toString());
-    const combustibleLitros = patchData.combustibleLitros ?? (existing.combustibleLitros ? parseFloat(existing.combustibleLitros.toString()) : undefined);
     const distanciaOdometro = kmFinal - kmInicial;
     const existingDistanciaGPS = existing.distanciaGPS ? parseFloat(existing.distanciaGPS.toString()) : distanciaOdometro;
     const discrepancia = existingDistanciaGPS > 0
       ? Math.abs((distanciaOdometro - existingDistanciaGPS) / existingDistanciaGPS) * 100
       : 0;
     const alertaDiscrepancia = discrepancia > 20;
-    const consumoPorKm = combustibleLitros && distanciaOdometro > 0
-      ? combustibleLitros / distanciaOdometro
-      : undefined;
-    let total = patchData.total ?? parseFloat(existing.total.toString());
-    if (patchData.precioLitro && combustibleLitros) {
-      total = patchData.precioLitro * combustibleLitros;
-    }
+    const total = patchData.total ?? parseFloat(existing.total.toString());
 
     // Handle photo updates â€” only upload photos that have new base64 data
     // IMPORTANT: never pass an existing Supabase URL as input to guardarFotosVehiculo
@@ -3560,10 +3545,8 @@ app.patch('/api/vehiculo/registro/:id', requireAuth, requireAdmin, async (req, r
         kmInicial: new Decimal(kmInicial),
         kmFinal: new Decimal(kmFinal),
         distanciaOdometro: new Decimal(Math.round(distanciaOdometro * 10) / 10),
-        combustibleLitros: combustibleLitros ? new Decimal(combustibleLitros) : null,
         combustibleCosto: new Decimal(total),
         total: new Decimal(total),
-        consumoPorKm: consumoPorKm ? new Decimal(Math.round(consumoPorKm * 10000) / 10000) : null,
         discrepancia: new Decimal(Math.round(discrepancia * 10) / 10),
         alertaDiscrepancia,
         ...(patchData.descripcion !== undefined && { descripcion: patchData.descripcion }),

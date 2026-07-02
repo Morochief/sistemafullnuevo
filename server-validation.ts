@@ -222,8 +222,6 @@ export const ViajeStopSchema = z.object({
 export const RegistroVehiculoUpdateSchema = z.object({
   kmInicial: z.number().positive('Kilometraje inicial debe ser positivo'),
   kmFinal: z.number().positive('Kilometraje final debe ser positivo'),
-  combustibleLitros: z.number().positive('Litros de combustible deben ser positivos').optional(),
-  precioLitro: z.number().positive('Precio por litro debe ser positivo').optional(),
   total: z.number().positive('Total debe ser positivo'),
   descripcion: z.string().max(500).transform(sanitizeHTML),
   fecha: z.string()
@@ -244,13 +242,10 @@ export const RegistroVehiculoUpdateSchema = z.object({
 
 /**
  * Registro Vehiculo Patch Schema (Partial update - PATCH)
- * QA Enhancement: Added date validation
  */
 export const RegistroVehiculoPatchSchema = z.object({
   kmInicial: z.number().positive('Kilometraje inicial debe ser positivo').optional(),
   kmFinal: z.number().positive('Kilometraje final debe ser positivo').optional(),
-  combustibleLitros: z.number().positive('Litros de combustible deben ser positivos').optional(),
-  precioLitro: z.number().positive('Precio por litro debe ser positivo').optional(),
   total: z.number().positive('Total debe ser positivo').optional(),
   descripcion: z.string().max(500).transform(sanitizeHTML).optional(),
   fotoOdometroInicio: z.string().optional(),

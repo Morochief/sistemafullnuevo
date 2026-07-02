@@ -55,8 +55,7 @@ function formatDate(dateStr: string): string {
 interface EditFormData {
   kmInicial: number;
   kmFinal: number;
-  combustibleLitros?: number;
-  precioLitro?: number;
+  costoPorKm: number;
   total: number;
   descripcion: string;
   fecha: string;
@@ -72,14 +71,15 @@ function useVehiculoCRUD(onRefresh: () => Promise<void>) {
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const startEdit = useCallback((registro: RegistroVehiculo) => {
+    const distancia = registro.kmFinal - registro.kmInicial;
+    const costoPorKm = distancia > 0 && registro.total > 0
+      ? Math.round(registro.total / distancia)
+      : 1400;
     setEditingId(registro.id);
     setFormData({
       kmInicial: registro.kmInicial,
       kmFinal: registro.kmFinal,
-      combustibleLitros: registro.combustibleLitros,
-      precioLitro: registro.combustibleLitros && registro.total 
-        ? registro.total / registro.combustibleLitros 
-        : undefined,
+      costoPorKm,
       total: registro.total,
       descripcion: registro.descripcion,
       fecha: registro.fecha,
@@ -111,12 +111,19 @@ function useVehiculoCRUD(onRefresh: () => Promise<void>) {
     setFeedback(null);
 
     try {
+      const distancia = formData.kmFinal - formData.kmInicial;
+      const total = distancia > 0 ? Math.round(distancia * formData.costoPorKm) : formData.total;
+
       console.log('Sending PATCH request...');
       await authFetchJSON(`/api/vehiculo/registro/${editingId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...formData,
+          kmInicial: formData.kmInicial,
+          kmFinal: formData.kmFinal,
+          total,
+          descripcion: formData.descripcion,
+          fecha: formData.fecha,
           // Only send foto fields if they are new base64 data — skip existing URLs
           fotoOdometroInicio: formData.fotoOdometroInicio?.startsWith('data:') ? formData.fotoOdometroInicio : undefined,
           fotoOdometroFin: formData.fotoOdometroFin?.startsWith('data:') ? formData.fotoOdometroFin : undefined,
@@ -583,33 +590,29 @@ function EditModal({
               </div>
             </div>
 
-            {/* Combustible */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-mono uppercase tracking-wider text-slate-400 mb-2 block">
-                  Litros
-                </label>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={formData.combustibleLitros || ''}
-                  onChange={(e) => onUpdateField('combustibleLitros', parseFloat(e.target.value) || undefined)}
-                  disabled={isSubmitting}
-                  className="glass-input w-full rounded-xl px-4 py-3 text-sm"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-mono uppercase tracking-wider text-slate-400 mb-2 block">
-                  Costo Total (Gs.)
-                </label>
-                <input
-                  type="number"
-                  value={formData.total}
-                  onChange={(e) => onUpdateField('total', parseFloat(e.target.value))}
-                  disabled={isSubmitting}
-                  className="glass-input w-full rounded-xl px-4 py-3 text-sm"
-                />
-              </div>
+            {/* Costo por Km */}
+            <div className="mb-4">
+              <label className="text-xs font-mono uppercase tracking-wider text-slate-400 mb-2 block">
+                Costo por Km (Gs.)
+              </label>
+              <input
+                type="number"
+                step="100"
+                value={formData.costoPorKm}
+                onChange={(e) => onUpdateField('costoPorKm', parseFloat(e.target.value) || 0)}
+                disabled={isSubmitting}
+                className="glass-input w-full rounded-xl px-4 py-3 text-sm"
+              />
+              {(() => {
+                const dist = formData.kmFinal - formData.kmInicial;
+                const total = dist > 0 ? Math.round(dist * formData.costoPorKm) : formData.total;
+                return dist > 0 ? (
+                  <p className="text-xs text-emerald-400 mt-1">
+                    {dist.toFixed(1)} km × Gs. {formData.costoPorKm.toLocaleString()} ={' '}
+                    <strong>Gs. {total.toLocaleString()}</strong>
+                  </p>
+                ) : null;
+              })()}
             </div>
 
             {/* Descripción */}
