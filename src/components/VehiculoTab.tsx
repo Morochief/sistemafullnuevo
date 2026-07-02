@@ -389,13 +389,27 @@ export default function VehiculoTab({ selectedClienteId, selectedProyectoId, cur
         />
       )}
 
-      {mostrarModalFin && (
+      {mostrarModalFin && kmInicio && kmInicio > 0 ? (
         <ModalFinalizarViaje
           onClose={() => setMostrarModalFin(false)}
           onFinish={finalizarViaje}
-          kmInicio={kmInicio || 0}
+          kmInicio={kmInicio}
           duracionSegundos={duracionSegundos}
         />
+      ) : mostrarModalFin && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/80 backdrop-blur-md p-4">
+          <div className="glass-panel rounded-3xl p-6 max-w-md w-full text-center border border-white/10 shadow-2xl">
+            <AlertCircle className="w-12 h-12 text-amber-400 mx-auto mb-4" />
+            <h3 className="text-lg font-bold text-white mb-2">No hay viaje activo válido</h3>
+            <p className="text-sm text-slate-400 mb-4">El viaje no se inició correctamente. Recargá la página e iniciá un nuevo viaje.</p>
+            <button
+              onClick={() => { setMostrarModalFin(false); cancelarViaje(); }}
+              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold transition-all cursor-pointer"
+            >
+              Cerrar y limpiar estado
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
