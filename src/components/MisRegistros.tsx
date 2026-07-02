@@ -219,6 +219,7 @@ interface EditModalProps {
   onClose: () => void;
   onUpdateField: (field: keyof EditFormData, value: string) => void;
   onSubmit: () => Promise<void>;
+  showPrices: boolean;
 }
 
 function EditModal({
@@ -231,6 +232,7 @@ function EditModal({
   onClose,
   onUpdateField,
   onSubmit,
+  showPrices,
 }: EditModalProps) {
   if (!isOpen || !registro) return null;
 
@@ -322,14 +324,18 @@ function EditModal({
                       <span className="text-slate-500 text-xs">Cantidad:</span>
                       <p className="text-white font-mono">{registro.cantidad}</p>
                     </div>
-                    <div>
-                      <span className="text-slate-500 text-xs">Precio Unitario:</span>
-                      <p className="text-white font-mono">{formatGuaranies(registro.precioUnitario)}</p>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-slate-500 text-xs">Total:</span>
-                      <p className="text-white font-bold text-lg">{formatGuaranies(registro.total)}</p>
-                    </div>
+                    {showPrices && (
+                      <>
+                        <div>
+                          <span className="text-slate-500 text-xs">Precio Unitario:</span>
+                          <p className="text-white font-mono">{formatGuaranies(registro.precioUnitario)}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <span className="text-slate-500 text-xs">Total:</span>
+                          <p className="text-white font-bold text-lg">{formatGuaranies(registro.total)}</p>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -876,11 +882,15 @@ export default function MisRegistros({ data, currentUser, onRefresh }: MisRegist
             <p className="text-xs text-slate-500 font-mono uppercase tracking-wider">Total Registros</p>
             <p className="text-2xl font-bold text-white">{misRegistros.length + misRegistrosVehiculo.length}</p>
           </div>
-          <div className="w-px h-12 bg-white/10" />
-          <div className="text-center">
-            <p className="text-xs text-slate-500 font-mono uppercase tracking-wider">Total Acumulado</p>
-            <p className="text-xl font-bold text-emerald-400 font-mono">{formatGuaranies(totalAcumulado)}</p>
-          </div>
+          {currentUser?.rol !== 'Operario' && (
+            <>
+              <div className="w-px h-12 bg-white/10" />
+              <div className="text-center">
+                <p className="text-xs text-slate-500 font-mono uppercase tracking-wider">Total Acumulado</p>
+                <p className="text-xl font-bold text-emerald-400 font-mono">{formatGuaranies(totalAcumulado)}</p>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -937,6 +947,7 @@ export default function MisRegistros({ data, currentUser, onRefresh }: MisRegist
                         key={registro.id}
                         registro={registro}
                         onEdit={startEdit}
+                        showPrices={currentUser?.rol !== 'Operario'}
                       />
                     ))}
                     
@@ -966,6 +977,7 @@ export default function MisRegistros({ data, currentUser, onRefresh }: MisRegist
         onClose={cancelEdit}
         onUpdateField={updateField}
         onSubmit={submitEdit}
+        showPrices={currentUser?.rol !== 'Operario'}
       />
     </div>
   );

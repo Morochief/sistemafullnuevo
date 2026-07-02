@@ -792,7 +792,7 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
 
     setMoSubmitting(false);
     if (ok) {
-      setMoFeedback({ type: 'success', msg: `✓ Registrado: ${formatDuration(timerSeconds)} — ${formatGuaranies(costoMO)}` });
+      setMoFeedback({ type: 'success', msg: `✓ Registrado: ${formatDuration(timerSeconds)}${currentUser?.rol !== 'Operario' ? ` — ${formatGuaranies(costoMO)}` : ''}` });
       handleResetTimer();
       setMoDescripcion('');
     } else {
@@ -1235,7 +1235,7 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
 
               {/* Vista Previa del Costo */}
               <AnimatePresence>
-                {timerSeconds > 0 && (
+                {timerSeconds > 0 && currentUser?.rol !== 'Operario' && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
@@ -1280,7 +1280,9 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
                       >
                         <option value="">— Sin asignar —</option>
                         {data.colaboradores.map(c => (
-                          <option key={c.id} value={c.id}>{c.nombre} ({formatGuaranies(c.tarifaSugerida)}/min)</option>
+                          <option key={c.id} value={c.id}>
+                            {c.nombre} {currentUser?.rol !== 'Operario' ? `(${formatGuaranies(c.tarifaSugerida)}/min)` : ''}
+                          </option>
                         ))}
                       </select>
                     </div>
@@ -1291,9 +1293,11 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
                         <span className="flex-1">
                           {currentUser?.nombre || 'Usuario actual'}
                         </span>
-                        <span className="text-xs text-slate-400 font-mono">
-                          {currentUserColaborador && `${formatGuaranies(currentUserColaborador.tarifaSugerida)}/min`}
-                        </span>
+                        {currentUser?.rol !== 'Operario' && currentUserColaborador && (
+                          <span className="text-xs text-slate-400 font-mono">
+                            {formatGuaranies(currentUserColaborador.tarifaSugerida)}/min
+                          </span>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1315,34 +1319,36 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
                 </div>
 
                 {/* Tarifa */}
-                <div>
-                  <label className="text-xs font-mono uppercase tracking-wider text-slate-400 mb-2 block flex items-center gap-2">
-                    Tarifa por minuto (Gs.)
-                    {!canChangeColaborador && (
-                      <span className="text-slate-600 text-[9px] flex items-center gap-1">
-                        <Lock className="w-3 h-3" />
-                        Autocompletado
-                      </span>
-                    )}
-                  </label>
-                  <div className="relative">
-                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
-                    <input
-                      type="number"
-                      value={moPrecioUnitario}
-                      onChange={e => canChangeColaborador && setMoPrecioUnitario(e.target.value)}
-                      onKeyDown={handleKeyDown}
-                      placeholder="350"
-                      min="0"
-                      disabled={!canChangeColaborador}
-                      className={`w-full rounded-xl pl-10 pr-4 py-3 text-sm ${
-                        canChangeColaborador 
-                          ? 'glass-input' 
-                          : 'bg-slate-800/50 border border-slate-700/50 text-slate-400 cursor-not-allowed'
-                      }`}
-                    />
+                {currentUser?.rol !== 'Operario' && (
+                  <div>
+                    <label className="text-xs font-mono uppercase tracking-wider text-slate-400 mb-2 block flex items-center gap-2">
+                      Tarifa por minuto (Gs.)
+                      {!canChangeColaborador && (
+                        <span className="text-slate-600 text-[9px] flex items-center gap-1">
+                          <Lock className="w-3 h-3" />
+                          Autocompletado
+                        </span>
+                      )}
+                    </label>
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                      <input
+                        type="number"
+                        value={moPrecioUnitario}
+                        onChange={e => canChangeColaborador && setMoPrecioUnitario(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder="350"
+                        min="0"
+                        disabled={!canChangeColaborador}
+                        className={`w-full rounded-xl pl-10 pr-4 py-3 text-sm ${
+                          canChangeColaborador 
+                            ? 'glass-input' 
+                            : 'bg-slate-800/50 border border-slate-700/50 text-slate-400 ...39>'
+                        }`}
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Feedback MO */}
