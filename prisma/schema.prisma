@@ -18,7 +18,6 @@ model Cliente {
 
   proyectos         Proyecto[]
   registros         Registro[]
-  registrosVehiculo RegistroVehiculo[]
 
   @@map("clientes")
 }
@@ -35,7 +34,6 @@ model Proyecto {
 
   cliente           Cliente            @relation(fields: [clienteId], references: [id], onDelete: Cascade)
   registros         Registro[]
-  registrosVehiculo RegistroVehiculo[]
 
   @@index([clienteId])
   @@map("proyectos")
@@ -115,9 +113,6 @@ model RegistroVehiculo {
   fechaImportacion     DateTime? @map("fecha_importacion")
   createdAt            DateTime  @default(now()) @map("created_at")
   updatedAt            DateTime  @updatedAt @map("updated_at")
-
-  cliente  Cliente  @relation(fields: [clienteId], references: [id])
-  proyecto Proyecto @relation(fields: [proyectoId], references: [id])
 
   @@index([clienteId])
   @@index([proyectoId])
