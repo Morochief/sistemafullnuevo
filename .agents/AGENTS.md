@@ -390,3 +390,8 @@ await prisma.usuario.update({ where: { username: 'rodrigo' }, data: { colaborado
 
 ### 27. Prevención de Doble Envío (Double Submission)
 **Regla:** En formularios transaccionales que interactúan con base de datos, el botón de envío debe deshabilitarse de inmediato tras el primer clic (`disabled={isSubmitting}`). De lo contrario, un doble clic rápido generará dos peticiones concurrentes; la primera se guardará con éxito, pero la segunda devolverá un error `400` ("Usuario ya registrado") que confundirá al usuario haciéndole pensar que todo el proceso falló.
+
+### 28. Aislamiento de Rutas Estáticas en Producción (Vite vs Express)
+**Problema:** Si el middleware para servir archivos estáticos compilados (`express.static('dist')`) y la ruta fallback de la aplicación SPA (`app.get('*')`) se anidan por error dentro del bloque condicional destinado a desarrollo (`process.env.NODE_ENV !== 'production'`), el backend arrancará sin problemas en producción pero se rehusará a servir el frontend, causando pantallas en blanco o errores 404.
+**Regla:** Estructurar de manera explícita la bifurcación de entornos (`if/else`) en el inicio del servidor, garantizando que el bloque de producción sirva siempre los archivos estáticos desde el directorio `dist` compilado.
+
