@@ -504,7 +504,7 @@ export default function Dashboard({ data, onNavigateImport, onDeleteRegistro, on
     return Object.entries(map)
       .map(([name, hours]) => ({ 
         name: name.length > 25 ? name.substring(0, 22) + '...' : name, 
-        horas: parseFloat(hours.toFixed(1)) 
+        horas: parseFloat(hours.toFixed(2)) 
       }))
       .filter(item => item.horas > 0);
   }, [filteredRegistros]);
