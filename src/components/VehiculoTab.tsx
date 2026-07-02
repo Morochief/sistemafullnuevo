@@ -29,6 +29,7 @@ interface VehiculoTabProps {
   selectedProyectoId: string;
   currentUser: { nombre: string; rol: string; usuario: string } | null;
   contextComplete: boolean;
+  onRefresh?: () => Promise<void>;
 }
 
 // Opción especial para viajes sin proyecto
@@ -267,6 +268,7 @@ function useViaje({ currentUser }: { currentUser: any }) {
     setUbicacionInicio(null);
     setDuracionSegundos(0);
     clearLocalStorage();
+    if (onRefresh && response?.success) await onRefresh();
     return response;
   };
 
@@ -296,7 +298,7 @@ function useViaje({ currentUser }: { currentUser: any }) {
   };
 }
 
-export default function VehiculoTab({ selectedClienteId, selectedProyectoId, currentUser, contextComplete }: VehiculoTabProps) {
+export default function VehiculoTab({ selectedClienteId, selectedProyectoId, currentUser, contextComplete, onRefresh }: VehiculoTabProps) {
   const { requestConfirm } = useNotif();
   const {
     viajeActivo,

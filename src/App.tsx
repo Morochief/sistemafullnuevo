@@ -702,6 +702,7 @@ function AppInner() {
               <RegistroOperativo
                 data={dbState}
                 onAddRegistro={handleAddManualRegistro}
+                onRefresh={fetchDbState}
                 currentUser={session}
               />
             </motion.div>

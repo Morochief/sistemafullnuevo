@@ -48,6 +48,7 @@ import VehiculoTab from './VehiculoTab.tsx';
 interface RegistroOperativoProps {
   data: DatabaseState;
   onAddRegistro: (registro: any) => Promise<boolean>;
+  onRefresh?: () => Promise<void>;
   currentUser: { nombre: string; rol: string; usuario: string; colaboradorId?: string } | null;
 }
 
@@ -592,7 +593,7 @@ function useInsumos(isOperario: boolean = false) {
 
 // ─── MAIN COMPONENT ─────────────────────────────────────────────────────────
 
-export default function RegistroOperativo({ data, onAddRegistro, currentUser }: RegistroOperativoProps) {
+export default function RegistroOperativo({ data, onAddRegistro, onRefresh, currentUser }: RegistroOperativoProps) {
 
   // ══════════════════════════════════════════════════════
   //  SHARED CONTEXT STATE
@@ -1624,6 +1625,7 @@ export default function RegistroOperativo({ data, onAddRegistro, currentUser }: 
               selectedProyectoId={selectedProyectoId}
               currentUser={currentUser}
               contextComplete={contextComplete}
+              onRefresh={onRefresh}
             />
           </TabPanel>
 
