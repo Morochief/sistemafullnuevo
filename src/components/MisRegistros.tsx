@@ -535,12 +535,14 @@ const RegistroCard = React.memo<RegistroCardProps>(({ registro, onEdit }) => {
         </div>
 
         {/* Total */}
+        {showPrices && (
         <div className="pt-3 border-t border-white/10 flex items-center justify-between">
           <span className="text-xs text-slate-500 font-mono uppercase tracking-wider">Total</span>
           <span className="text-white font-bold text-lg font-mono">
             {formatGuaranies(registro.total)}
           </span>
         </div>
+        )}
       </div>
     </motion.div>
   );
@@ -655,12 +657,14 @@ const RegistroVehiculoCard = React.memo<RegistroVehiculoCardProps>(({ registro }
         )}
 
         {/* Total */}
+        {showPrices && (
         <div className="pt-3 border-t border-white/10 flex items-center justify-between">
           <span className="text-xs text-slate-500 font-mono uppercase tracking-wider">Combustible</span>
           <span className="text-white font-bold text-lg font-mono">
             {formatGuaranies(registro.total)}
           </span>
         </div>
+        )}
       </div>
     </motion.div>
   );
