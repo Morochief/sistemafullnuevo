@@ -295,6 +295,14 @@ function useViaje({ currentUser }: { currentUser: any }) {
     iniciarViaje,
     finalizarViaje,
     cancelarViaje,
+    forceCleanState: () => {
+      setViajeActivo(false);
+      setHoraInicio(null);
+      setKmInicio(null);
+      setUbicacionInicio(null);
+      setDuracionSegundos(0);
+      clearLocalStorage();
+    },
   };
 }
 
@@ -308,6 +316,7 @@ export default function VehiculoTab({ selectedClienteId, selectedProyectoId, cur
     iniciarViaje,
     finalizarViaje,
     cancelarViaje,
+    forceCleanState,
   } = useViaje({ currentUser });
 
   const [mostrarModalInicio, setMostrarModalInicio] = useState(false);
@@ -404,13 +413,7 @@ export default function VehiculoTab({ selectedClienteId, selectedProyectoId, cur
             <p className="text-sm text-slate-400 mb-4">El viaje no se inició correctamente. Recargá la página e iniciá un nuevo viaje.</p>
             <button
               onClick={() => {
-                // Limpiar estado local forzosamente sin esperar API
-                setViajeActivo(false);
-                setHoraInicio(null);
-                setKmInicio(null);
-                setUbicacionInicio(null);
-                setDuracionSegundos(0);
-                clearLocalStorage();
+                forceCleanState();
                 setMostrarModalFin(false);
               }}
               className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold transition-all cursor-pointer"
