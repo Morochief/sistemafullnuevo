@@ -398,14 +398,15 @@ export default function VehiculoTab({ selectedClienteId, selectedProyectoId, cur
         />
       )}
 
-      {mostrarModalFin && kmInicio && kmInicio > 0 ? (
+      {mostrarModalFin && kmInicio && kmInicio > 0 && (
         <ModalFinalizarViaje
           onClose={() => setMostrarModalFin(false)}
           onFinish={finalizarViaje}
           kmInicio={kmInicio}
           duracionSegundos={duracionSegundos}
         />
-      ) : mostrarModalFin && (
+      )}
+      {mostrarModalFin && (!kmInicio || kmInicio <= 0) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/80 backdrop-blur-md p-4">
           <div className="glass-panel rounded-3xl p-6 max-w-md w-full text-center border border-white/10 shadow-2xl">
             <AlertCircle className="w-12 h-12 text-amber-400 mx-auto mb-4" />
