@@ -2985,22 +2985,25 @@ app.post('/api/viaje/start', requireAuth, requireWriteAccess, async (req, res) =
       } as ApiResponse);
     }
 
-    // Verificar existencia fÃ­sica del cliente
-    const cliente = await prisma.cliente.findUnique({ where: { id: clienteId } });
-    if (!cliente) {
-      return res.status(400).json({
-        success: false,
-        error: { code: 'CLIENTE_NOT_FOUND', message: 'El cliente seleccionado no existe o fue eliminado.' }
-      } as ApiResponse);
-    }
+    // Saltar verificaciÃ³n de existencia para viajes particulares
+    const esParticular = clienteId === 'viaje_particular' || proyectoId === 'viaje_particular';
 
-    // Verificar existencia fÃ­sica del proyecto
-    const proyecto = await prisma.proyecto.findUnique({ where: { id: proyectoId } });
-    if (!proyecto) {
-      return res.status(400).json({
-        success: false,
-        error: { code: 'PROYECTO_NOT_FOUND', message: 'El proyecto seleccionado no existe o fue eliminado.' }
-      } as ApiResponse);
+    if (!esParticular) {
+      const cliente = await prisma.cliente.findUnique({ where: { id: clienteId } });
+      if (!cliente) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'CLIENTE_NOT_FOUND', message: 'El cliente seleccionado no existe o fue eliminado.' }
+        } as ApiResponse);
+      }
+
+      const proyecto = await prisma.proyecto.findUnique({ where: { id: proyectoId } });
+      if (!proyecto) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'PROYECTO_NOT_FOUND', message: 'El proyecto seleccionado no existe o fue eliminado.' }
+        } as ApiResponse);
+      }
     }
 
     const nuevoViaje = await prisma.viajeActivo.create({
