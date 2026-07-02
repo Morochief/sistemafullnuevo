@@ -25,6 +25,14 @@ export interface Colaborador {
   nombre: string;
   tarifaSugerida: number; // Precio por minuto o por hora
   rol?: string;
+  usuario?: {
+    id: string;
+    username: string;
+    nombre: string;
+    email: string | null;
+    rol: 'Admin' | 'Operario' | 'Visor';
+    activo: boolean;
+  } | null;
 }
 
 export interface RegistroItem {
@@ -135,6 +143,14 @@ export interface DatabaseState {
   registrosVehiculo: RegistroVehiculo[];
   timersActivos: TimerActivo[];
   viajesActivos: ViajeActivo[];
+  usuariosSinColaborador?: {
+    id: string;
+    username: string;
+    nombre: string;
+    email: string | null;
+    rol: 'Admin' | 'Operario' | 'Visor';
+    activo: boolean;
+  }[];
 }
 
 // Authentication & Authorization Types

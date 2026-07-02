@@ -378,3 +378,15 @@ await prisma.usuario.update({ where: { username: 'rodrigo' }, data: { colaborado
 2. Proteger siempre todos los endpoints mutativos (`POST`, `PUT`, `DELETE` en `/api/registros`, `/api/clientes`, `/api/proyectos`) con el middleware `requireWriteAccess` además de `requireAuth` para que cualquier petición directa de API desde la consola del navegador por un `Visor` retorne `403 Forbidden`.
 **Sintoma:** Los tests E2E fallan localmente por timeout en el puerto 3100, o un usuario Visor logra saltarse las restricciones visuales haciendo fetch directo en consola.
 
+### 24. Unificación de Módulos Relacionados (Colaboradores y Accesos)
+**Regla:** Para optimizar la experiencia de usuario y evitar tareas repetitivas de vinculación manual, la gestión de entidades físicas (como Colaboradores) y sus accesos al sistema (Usuarios) debe realizarse en un único módulo unificado. Al crear o editar la entidad física, se debe proveer un switch para habilitar/deshabilitar su login de manera transaccional.
+
+### 25. Relajación Controlada de Password Complexity por Usabilidad de Negocio
+**Regla:** Aunque las directrices de seguridad estándar exijan contraseñas robustas con múltiples reglas de entropía (mayúsculas, números, caracteres especiales), se deben flexibilizar estas reglas si el negocio lo requiere (por ejemplo, para soportar accesos simplificados mediante Cédula de Identidad y contraseñas cortas fáciles de memorizar para personal de campo como operarios). En tales casos, reducir la complejidad de validación en los esquemas de Zod (ej. a un mínimo de 3 caracteres libres) para evitar errores innecesarios y soporte continuo de IT.
+
+### 26. Evitar Falsos Alertas en Consola por Extensiones de Navegador
+**Regla:** Los navegadores de los usuarios suelen ejecutar extensiones que inyectan scripts cargando telemetrías externas (ej: Blackbox AI). Sus fallos de red por CORS llenan la consola del navegador con errores llamativos como `TypeError: Failed to fetch`.
+- **Acción:** No asumir fallos del servidor local basándose ciegamente en la consola del navegador sin antes filtrar por el origen de la petición. La UI de la aplicación debe contar con notificaciones (toasts) claros e independientes de los errores de red del navegador.
+
+### 27. Prevención de Doble Envío (Double Submission)
+**Regla:** En formularios transaccionales que interactúan con base de datos, el botón de envío debe deshabilitarse de inmediato tras el primer clic (`disabled={isSubmitting}`). De lo contrario, un doble clic rápido generará dos peticiones concurrentes; la primera se guardará con éxito, pero la segunda devolverá un error `400` ("Usuario ya registrado") que confundirá al usuario haciéndole pensar que todo el proceso falló.

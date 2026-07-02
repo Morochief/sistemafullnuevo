@@ -29,10 +29,8 @@ export const LoginSchema = z.object({
  *   - at least one number
  */
 export const PasswordComplexitySchema = z.string()
-  .min(8, 'La contraseña debe tener al menos 8 caracteres')
-  .regex(/[A-Z]/, 'La contraseña debe incluir al menos una mayúscula')
-  .regex(/[a-z]/, 'La contraseña debe incluir al menos una minúscula')
-  .regex(/[0-9]/, 'La contraseña debe incluir al menos un número');
+  .min(3, 'La contraseña debe tener al menos 3 caracteres');
+
 
 /**
  * Helper: Sanitize HTML from user input (SECURITY Phase 2 Fix #4)

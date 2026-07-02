@@ -407,13 +407,13 @@ function AppInner() {
     }
   };
 
-  const handleAddColaboradorObj = async (newColaborador: Colaborador) => {
+  const handleAddColaboradorObj = async (newColaborador: any) => {
     if (!dbState) return;
     try {
       const res = await authFetchJSON('/api/colaboradores', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombre: newColaborador.nombre, rol: newColaborador.rol, tarifaSugerida: newColaborador.tarifaSugerida })
+        body: JSON.stringify(newColaborador)
       });
       if (res.success && res.data) {
         setDbState({ ...dbState, colaboradores: [...dbState.colaboradores, res.data] });
@@ -423,7 +423,7 @@ function AppInner() {
     }
   };
 
-  const handleEditColaboradorObj = async (id: string, data: Partial<Colaborador>) => {
+  const handleEditColaboradorObj = async (id: string, data: any) => {
     if (!dbState) return;
     try {
       const res = await authFetchJSON(`/api/colaboradores/${id}`, {

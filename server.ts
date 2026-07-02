@@ -1151,12 +1151,23 @@ function convertPrismaToFrontend(prismaData: any): DatabaseState {
       fechaInicio: p.fechaInicio.toISOString().substring(0, 10),
       activo: p.activo
     })),
-    colaboradores: prismaData.colaboradores.map((c: any) => ({
-      id: c.id,
-      nombre: c.nombre,
-      tarifaSugerida: c.tarifaSugerida ? parseFloat(c.tarifaSugerida.toString()) : 0,
-      rol: c.rol || undefined
-    })),
+    colaboradores: prismaData.colaboradores.map((c: any) => {
+      const linkedUser = (prismaData.usuarios || []).find((u: any) => u.colaboradorId === c.id);
+      return {
+        id: c.id,
+        nombre: c.nombre,
+        tarifaSugerida: c.tarifaSugerida ? parseFloat(c.tarifaSugerida.toString()) : 0,
+        rol: c.rol || undefined,
+        usuario: linkedUser ? {
+          id: linkedUser.id,
+          username: linkedUser.username,
+          nombre: linkedUser.nombre,
+          email: linkedUser.email,
+          rol: mapDbRolToUi(linkedUser.rol),
+          activo: linkedUser.activo
+        } : null
+      };
+    }),
     registros: prismaData.registros.map((r: any) => ({
       id: r.id,
       clienteId: r.clienteId,
@@ -1233,14 +1244,24 @@ function convertPrismaToFrontend(prismaData: any): DatabaseState {
       descripcion: v.descripcion,
       activo: v.activo,
     })),
+    usuariosSinColaborador: (prismaData.usuarios || [])
+      .filter((u: any) => !u.colaboradorId)
+      .map((u: any) => ({
+        id: u.id,
+        username: u.username,
+        nombre: u.nombre,
+        email: u.email,
+        rol: mapDbRolToUi(u.rol),
+        activo: u.activo
+      })),
   };
 }
 
 // Get active DB State for the application
 app.get('/api/data', requireAuth, async (req, res) => {
   try {
-    // Fetch all data from Prisma in parallel
-    const [clientes, proyectos, colaboradores, registros, registrosVehiculo, timersActivos, viajesActivos] = await Promise.all([
+    // Fetch all data from Prisma in parallel including users
+    const [clientes, proyectos, colaboradores, registros, registrosVehiculo, timersActivos, viajesActivos, usuarios] = await Promise.all([
       prisma.cliente.findMany({
         orderBy: { fechaCreacion: 'desc' }
       }),
@@ -1258,6 +1279,7 @@ app.get('/api/data', requireAuth, async (req, res) => {
       }),
       prisma.timerActivo.findMany({ where: { activo: true } }),
       prisma.viajeActivo.findMany({ where: { activo: true } }),
+      prisma.usuario.findMany()
     ]);
 
     const data = convertPrismaToFrontend({
@@ -3722,41 +3744,191 @@ app.delete('/api/proyectos/:id', requireAuth, requireAdmin, requireWriteAccess, 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 app.post('/api/colaboradores', requireAuth, requireAdmin, async (req, res) => {
-  const { nombre, rol, tarifaSugerida } = req.body;
+  const { nombre, rol, tarifaSugerida, crearAcceso, username, password, rolAcceso, email } = req.body;
   if (!nombre?.trim()) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Nombre requerido' } } as ApiResponse);
+
+  if (crearAcceso) {
+    if (!username || !password || !rolAcceso) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Datos de acceso incompletos' } });
+    }
+    if (!['Admin', 'Operario', 'Visor'].includes(rolAcceso)) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Rol de acceso inválido' } });
+    }
+    const pwdValidation = PasswordComplexitySchema.safeParse(password);
+    if (!pwdValidation.success) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: pwdValidation.error.errors[0].message } });
+    }
+  }
+
   try {
-    const colaborador = await prisma.colaborador.create({
-      data: {
-        id: generateId('col'),
-        nombre: nombre.trim(),
-        rol: rol?.trim() || null,
-        tarifaSugerida: tarifaSugerida ? new Decimal(tarifaSugerida) : null,
+    const result = await prisma.$transaction(async (tx) => {
+      const colaborador = await tx.colaborador.create({
+        data: {
+          id: generateId('col'),
+          nombre: nombre.trim(),
+          rol: rol?.trim() || null,
+          tarifaSugerida: tarifaSugerida ? new Decimal(tarifaSugerida) : null,
+        }
+      });
+
+      let newUser = null;
+      if (crearAcceso) {
+        const cleanUser = username.toLowerCase().trim();
+        const existingUser = await tx.usuario.findFirst({ where: { username: { equals: cleanUser, mode: 'insensitive' } } });
+        if (existingUser) {
+          throw new Error('El nombre de usuario ya está registrado');
+        }
+
+        const passwordHash = await hashPwd(password);
+        const dbRol = mapUiRolToDb(rolAcceso);
+        newUser = await tx.usuario.create({
+          data: {
+            username: cleanUser,
+            nombre: nombre.trim(),
+            email: email ? email.trim() : null,
+            passwordHash,
+            rol: dbRol,
+            colaboradorId: colaborador.id,
+            activo: true
+          }
+        });
       }
+
+      return { colaborador, usuario: newUser };
     });
-    auditLog({ usuario: req.user!.usuario, accion: 'create_colaborador', recurso: `/api/colaboradores/${colaborador.id}`, resultado: 'success', ip: getClientIp(req) });
-    res.status(201).json({ success: true, data: { ...colaborador, tarifaSugerida: colaborador.tarifaSugerida ? parseFloat(colaborador.tarifaSugerida.toString()) : 0 }, message: 'Colaborador creado' } as ApiResponse);
+
+    auditLog({ usuario: req.user!.usuario, accion: 'create_colaborador', recurso: `/api/colaboradores/${result.colaborador.id}`, resultado: 'success', ip: getClientIp(req) });
+    res.status(201).json({ 
+      success: true, 
+      data: { 
+        ...result.colaborador, 
+        tarifaSugerida: result.colaborador.tarifaSugerida ? parseFloat(result.colaborador.tarifaSugerida.toString()) : 0,
+        usuario: result.usuario ? {
+          id: result.usuario.id,
+          username: result.usuario.username,
+          nombre: result.usuario.nombre,
+          email: result.usuario.email,
+          rol: mapDbRolToUi(result.usuario.rol),
+          activo: result.usuario.activo
+        } : null
+      }, 
+      message: 'Colaborador creado con éxito' 
+    } as ApiResponse);
   } catch (error: any) {
     logger.error('Error creating colaborador:', error);
-    res.status(500).json({ success: false, error: { code: 'CREATE_ERROR', message: 'Error al crear colaborador' } } as ApiResponse);
+    res.status(400).json({ success: false, error: { code: 'CREATE_ERROR', message: error.message || 'Error al crear colaborador' } } as ApiResponse);
   }
 });
 
 app.put('/api/colaboradores/:id', requireAuth, requireAdmin, async (req, res) => {
   const { id } = req.params;
-  const { nombre, rol, tarifaSugerida } = req.body;
+  const { nombre, rol, tarifaSugerida, hasAcceso, username, password, rolAcceso, email, activoAcceso } = req.body;
   if (!nombre?.trim()) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Nombre requerido' } } as ApiResponse);
+
   try {
     const existing = await prisma.colaborador.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Colaborador no encontrado' } } as ApiResponse);
-    const updated = await prisma.colaborador.update({
-      where: { id },
-      data: { nombre: nombre.trim(), rol: rol?.trim() || existing.rol, tarifaSugerida: tarifaSugerida ? new Decimal(tarifaSugerida) : existing.tarifaSugerida }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const updatedColaborador = await tx.colaborador.update({
+        where: { id },
+        data: { nombre: nombre.trim(), rol: rol?.trim() || existing.rol, tarifaSugerida: tarifaSugerida ? new Decimal(tarifaSugerida) : existing.tarifaSugerida }
+      });
+
+      const existingUser = await tx.usuario.findFirst({ where: { colaboradorId: id } });
+      let linkedUser = null;
+
+      if (hasAcceso) {
+        if (!username?.trim() || !rolAcceso) {
+          throw new Error('Datos de acceso incompletos');
+        }
+
+        const cleanUser = username.toLowerCase().trim();
+
+        if (existingUser) {
+          if (cleanUser !== existingUser.username) {
+            const dup = await tx.usuario.findFirst({ where: { username: { equals: cleanUser, mode: 'insensitive' }, id: { not: existingUser.id } } });
+            if (dup) throw new Error('El nombre de usuario ya está registrado');
+          }
+
+          const updateData: any = {
+            username: cleanUser,
+            nombre: nombre.trim(),
+            email: email ? email.trim() : null,
+            rol: mapUiRolToDb(rolAcceso),
+            activo: activoAcceso !== false
+          };
+
+          if (password) {
+            const pwdValidation = PasswordComplexitySchema.safeParse(password);
+            if (!pwdValidation.success) {
+              throw new Error(pwdValidation.error.errors[0].message);
+            }
+            updateData.passwordHash = await hashPwd(password);
+          }
+
+          linkedUser = await tx.usuario.update({
+            where: { id: existingUser.id },
+            data: updateData
+          });
+
+          userActiveCache.delete(existingUser.username.toLowerCase());
+          userActiveCache.delete(cleanUser);
+        } else {
+          if (!password) {
+            throw new Error('La contraseña es obligatoria para el nuevo acceso');
+          }
+          const pwdValidation = PasswordComplexitySchema.safeParse(password);
+          if (!pwdValidation.success) {
+            throw new Error(pwdValidation.error.errors[0].message);
+          }
+
+          const dup = await tx.usuario.findFirst({ where: { username: { equals: cleanUser, mode: 'insensitive' } } });
+          if (dup) throw new Error('El nombre de usuario ya está registrado');
+
+          const passwordHash = await hashPwd(password);
+          linkedUser = await tx.usuario.create({
+            data: {
+              username: cleanUser,
+              nombre: nombre.trim(),
+              email: email ? email.trim() : null,
+              passwordHash,
+              rol: mapUiRolToDb(rolAcceso),
+              colaboradorId: id,
+              activo: true
+            }
+          });
+        }
+      } else {
+        if (existingUser) {
+          await tx.usuario.delete({ where: { id: existingUser.id } });
+          userActiveCache.delete(existingUser.username.toLowerCase());
+        }
+      }
+
+      return { colaborador: updatedColaborador, usuario: linkedUser };
     });
+
     auditLog({ usuario: req.user!.usuario, accion: 'update_colaborador', recurso: `/api/colaboradores/${id}`, resultado: 'success', ip: getClientIp(req) });
-    res.json({ success: true, data: { ...updated, tarifaSugerida: updated.tarifaSugerida ? parseFloat(updated.tarifaSugerida.toString()) : 0 }, message: 'Colaborador actualizado' } as ApiResponse);
+    res.json({ 
+      success: true, 
+      data: { 
+        ...result.colaborador, 
+        tarifaSugerida: result.colaborador.tarifaSugerida ? parseFloat(result.colaborador.tarifaSugerida.toString()) : 0,
+        usuario: result.usuario ? {
+          id: result.usuario.id,
+          username: result.usuario.username,
+          nombre: result.usuario.nombre,
+          email: result.usuario.email,
+          rol: mapDbRolToUi(result.usuario.rol),
+          activo: result.usuario.activo
+        } : null
+      }, 
+      message: 'Colaborador actualizado con éxito' 
+    } as ApiResponse);
   } catch (error: any) {
     logger.error('Error updating colaborador:', error);
-    res.status(500).json({ success: false, error: { code: 'UPDATE_ERROR', message: 'Error al actualizar colaborador' } } as ApiResponse);
+    res.status(400).json({ success: false, error: { code: 'UPDATE_ERROR', message: error.message || 'Error al actualizar colaborador' } } as ApiResponse);
   }
 });
 
@@ -3765,7 +3937,16 @@ app.delete('/api/colaboradores/:id', requireAuth, requireAdmin, async (req, res)
   try {
     const existing = await prisma.colaborador.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Colaborador no encontrado' } } as ApiResponse);
-    await prisma.colaborador.delete({ where: { id } });
+
+    await prisma.$transaction(async (tx) => {
+      const linkedUser = await tx.usuario.findFirst({ where: { colaboradorId: id } });
+      if (linkedUser) {
+        await tx.usuario.delete({ where: { id: linkedUser.id } });
+        userActiveCache.delete(linkedUser.username.toLowerCase());
+      }
+      await tx.colaborador.delete({ where: { id } });
+    });
+
     auditLog({ usuario: req.user!.usuario, accion: 'delete_colaborador', recurso: `/api/colaboradores/${id}`, resultado: 'success', ip: getClientIp(req) });
     res.json({ success: true, message: 'Colaborador eliminado' } as ApiResponse);
   } catch (error: any) {

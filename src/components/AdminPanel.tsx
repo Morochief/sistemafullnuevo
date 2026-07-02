@@ -21,7 +21,14 @@ import {
   Clock,
   Calculator,
   FileText,
-  Car
+  Car,
+  Shield,
+  Key,
+  Lock,
+  Unlock,
+  UserCheck,
+  UserX,
+  Edit2
 } from 'lucide-react';
 import { DatabaseState, Cliente, Proyecto, Colaborador, RegistroItem } from '../types.ts';
 import VehiculosAdminView from './VehiculosAdminView.tsx';
@@ -815,42 +822,119 @@ function ProyectosTab({
 
 interface ColaboradoresTabProps {
   data: DatabaseState;
-  newColabName: string;
-  setNewColabName: (name: string) => void;
-  newColabRol: string;
-  setNewColabRol: (rol: string) => void;
-  newColabTarif: string;
-  setNewColabTarif: (tarif: string) => void;
-  onCreateCollaborator: (e: React.FormEvent) => void;
-  onEditColaborador: (id: string, data: Partial<Colaborador>) => Promise<void>;
+  onAddColaborador: (data: any) => Promise<void>;
+  onEditColaborador: (id: string, data: any) => Promise<void>;
   onDeleteColaborador: (id: string) => Promise<void>;
 }
 
 function ColaboradoresTab({
   data,
-  newColabName,
-  setNewColabName,
-  newColabRol,
-  setNewColabRol,
-  newColabTarif,
-  setNewColabTarif,
-  onCreateCollaborator,
+  onAddColaborador,
   onEditColaborador,
   onDeleteColaborador,
 }: ColaboradoresTabProps) {
   const { requestConfirm } = useNotif();
+  
+  // Creation local states
+  const [nombre, setNombre] = useState('');
+  const [rol, setRol] = useState('Operario');
+  const [tarifaSugerida, setTarifaSugerida] = useState('350');
+  const [crearAcceso, setCrearAcceso] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [rolAcceso, setRolAcceso] = useState<'Admin' | 'Operario' | 'Visor'>('Operario');
+  const [email, setEmail] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Editing local states
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editNombre, setEditNombre] = useState('');
   const [editRol, setEditRol] = useState('');
   const [editTarifa, setEditTarifa] = useState('');
+  const [editHasAcceso, setEditHasAcceso] = useState(false);
+  const [editUsername, setEditUsername] = useState('');
+  const [editPassword, setEditPassword] = useState('');
+  const [editRolAcceso, setEditRolAcceso] = useState<'Admin' | 'Operario' | 'Visor'>('Operario');
+  const [editEmail, setEditEmail] = useState('');
+  const [editActivoAcceso, setEditActivoAcceso] = useState(true);
 
-  const startEdit = (c: Colaborador) => { setEditingId(c.id); setEditNombre(c.nombre); setEditRol(c.rol || ''); setEditTarifa(String(c.tarifaSugerida)); };
+  const startEdit = (c: Colaborador) => { 
+    setEditingId(c.id); 
+    setEditNombre(c.nombre); 
+    setEditRol(c.rol || ''); 
+    setEditTarifa(String(c.tarifaSugerida || 350)); 
+    if (c.usuario) {
+      setEditHasAcceso(true);
+      setEditUsername(c.usuario.username);
+      setEditRolAcceso(c.usuario.rol);
+      setEditEmail(c.usuario.email || '');
+      setEditActivoAcceso(c.usuario.activo);
+    } else {
+      setEditHasAcceso(false);
+      setEditUsername('');
+      setEditRolAcceso('Operario');
+      setEditEmail('');
+      setEditActivoAcceso(true);
+    }
+    setEditPassword('');
+  };
+  
   const cancelEdit = () => setEditingId(null);
+  
   const submitEdit = async () => {
     if (!editNombre.trim()) return;
-    await onEditColaborador(editingId!, { nombre: editNombre.trim(), rol: editRol.trim(), tarifaSugerida: parseFloat(editTarifa) || 350 });
-    setEditingId(null);
+    setIsSubmitting(true);
+    try {
+      const payload: any = {
+        nombre: editNombre.trim(),
+        rol: editRol.trim(),
+        tarifaSugerida: parseFloat(editTarifa) || 350,
+        hasAcceso: editHasAcceso,
+        username: editUsername.trim(),
+        rolAcceso: editRolAcceso,
+        email: editEmail.trim() || null,
+        activoAcceso: editActivoAcceso
+      };
+      if (editPassword) {
+        payload.password = editPassword;
+      }
+      await onEditColaborador(editingId!, payload);
+      setEditingId(null);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nombre.trim()) return;
+    setIsSubmitting(true);
+    try {
+      const payload: any = {
+        nombre: nombre.trim(),
+        rol: rol.trim(),
+        tarifaSugerida: parseFloat(tarifaSugerida) || 350,
+        crearAcceso,
+        username: username.trim(),
+        password,
+        rolAcceso,
+        email: email.trim() || null
+      };
+      await onAddColaborador(payload);
+      // Reset creation state
+      setNombre('');
+      setRol('Operario');
+      setTarifaSugerida('350');
+      setCrearAcceso(false);
+      setUsername('');
+      setPassword('');
+      setRolAcceso('Operario');
+      setEmail('');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <motion.div 
       initial={{ opacity: 0, x: 20 }}
@@ -861,50 +945,120 @@ function ColaboradoresTab({
     >
       {/* Creation Form */}
       <AdminSection
-        title="Agregar Colaborador / Contratista"
+        title="Agregar Colaborador y Acceso"
         icon={<Plus className="w-5 h-5 text-pink-400" />}
-        description="Registra un nuevo trabajador o contratista al sistema"
+        description="Registra un nuevo trabajador y opcionalmente define sus credenciales de ingreso"
         variant="highlighted"
       >
-        <form onSubmit={onCreateCollaborator} className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-          <div className="space-y-1">
-            <label className="text-xs text-slate-400 font-mono">Nombre Completo *</label>
-            <input
-              type="text"
-              required
-              placeholder="Ej: Marcelo Spósito"
-              value={newColabName}
-              onChange={(e) => setNewColabName(e.target.value)}
-              className="w-full glass-input rounded-xl px-3 py-2 text-sm"
-            />
+        <form onSubmit={handleCreate} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="space-y-1">
+              <label className="text-xs text-slate-400 font-mono">Nombre Completo *</label>
+              <input
+                type="text"
+                required
+                placeholder="Ej: Marcelo Spósito"
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                className="w-full glass-input rounded-xl px-3 py-2 text-sm text-white bg-slate-900/50 border border-white/10"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-slate-400 font-mono">Rol / Especialización</label>
+              <input
+                type="text"
+                placeholder="Ej: Montador de Estructuras"
+                value={rol}
+                onChange={(e) => setRol(e.target.value)}
+                className="w-full glass-input rounded-xl px-3 py-2 text-sm text-white bg-slate-900/50 border border-white/10"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-slate-400 font-mono">Tarifa por Minuto *</label>
+              <input
+                type="number"
+                required
+                value={tarifaSugerida}
+                onChange={(e) => setTarifaSugerida(e.target.value)}
+                className="w-full glass-input rounded-xl px-3 py-2 text-sm text-white bg-slate-900/50 border border-white/10"
+              />
+            </div>
           </div>
-          <div className="space-y-1">
-            <label className="text-xs text-slate-400 font-mono">Rol / Especialización</label>
-            <input
-              type="text"
-              placeholder="Ej: Montador de Estructuras"
-              value={newColabRol}
-              onChange={(e) => setNewColabRol(e.target.value)}
-              className="w-full glass-input rounded-xl px-3 py-2 text-sm"
-            />
+
+          {/* Credentials Toggle Section */}
+          <div className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-3">
+            <label className="flex items-center gap-2.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={crearAcceso}
+                onChange={(e) => setCrearAcceso(e.target.checked)}
+                className="rounded border-white/10 text-pink-600 focus:ring-pink-500 focus:ring-offset-slate-900"
+              />
+              <span className="text-xs font-bold text-slate-300 uppercase tracking-wide">Habilitar Acceso de Inicio de Sesión (Login)</span>
+            </label>
+
+            {crearAcceso && (
+              <motion.div 
+                initial={{ opacity: 0, y: -10 }} 
+                animate={{ opacity: 1, y: 0 }} 
+                className="grid grid-cols-1 sm:grid-cols-4 gap-4 pt-2 border-t border-white/5"
+              >
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-400 font-mono">Usuario / Cédula *</label>
+                  <input
+                    type="text"
+                    required={crearAcceso}
+                    placeholder="Ej: 4888986"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="w-full glass-input rounded-xl px-3 py-2 text-sm text-white bg-slate-900/50 border border-white/10"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-400 font-mono">Contraseña *</label>
+                  <input
+                    type="password"
+                    required={crearAcceso}
+                    placeholder="Contraseña"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full glass-input rounded-xl px-3 py-2 text-sm text-white bg-slate-900/50 border border-white/10"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-400 font-mono">Rol del Sistema *</label>
+                  <select
+                    value={rolAcceso}
+                    onChange={(e) => setRolAcceso(e.target.value as any)}
+                    className="w-full glass-select rounded-xl px-3 py-2 text-sm text-white bg-slate-900/50 border border-white/10"
+                  >
+                    <option value="Operario">Operario</option>
+                    <option value="Admin">Administrador</option>
+                    <option value="Visor">Visor</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-400 font-mono">Email (Opcional)</label>
+                  <input
+                    type="email"
+                    placeholder="correo@ejemplo.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full glass-input rounded-xl px-3 py-2 text-sm text-white bg-slate-900/50 border border-white/10"
+                  />
+                </div>
+              </motion.div>
+            )}
           </div>
-          <div className="space-y-1">
-            <label className="text-xs text-slate-400 font-mono">Tarifa por Minuto *</label>
-            <input
-              type="number"
-              required
-              value={newColabTarif}
-              onChange={(e) => setNewColabTarif(e.target.value)}
-              className="w-full glass-input rounded-xl px-3 py-2 text-sm"
-            />
-          </div>
-          <div className="flex items-end">
+
+          <div className="flex justify-end">
             <button
               type="submit"
-              className="w-full py-2 bg-gradient-to-r from-pink-600 to-rose-600 hover:bg-pink-500 font-bold text-xs text-white rounded-xl cursor-pointer transition-all flex items-center justify-center gap-2"
+              disabled={isSubmitting}
+              className="py-2.5 px-6 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 disabled:opacity-50 disabled:cursor-not-allowed font-bold text-xs text-white rounded-xl cursor-pointer transition-all flex items-center justify-center gap-2 shadow-lg shadow-pink-500/10"
             >
               <Plus className="w-4 h-4" />
-              Dar de Alta
+              Guardar Colaborador
             </button>
           </div>
         </form>
@@ -915,16 +1069,76 @@ function ColaboradoresTab({
         title={`Listado de Contratistas (${data.colaboradores.length})`}
         icon={<Users className="w-5 h-5 text-pink-400" />}
       >
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 animate-fadeIn">
           {data.colaboradores.map(c => (
             <div key={c.id}>
               {editingId === c.id ? (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4 rounded-2xl bg-white/5 border border-pink-500/30 space-y-3">
-                  <input value={editNombre} onChange={e => setEditNombre(e.target.value)} placeholder="Nombre" className="w-full glass-input rounded-xl px-3 py-2 text-sm" />
-                  <input value={editRol} onChange={e => setEditRol(e.target.value)} placeholder="Rol" className="w-full glass-input rounded-xl px-3 py-2 text-sm" />
-                  <input type="number" value={editTarifa} onChange={e => setEditTarifa(e.target.value)} placeholder="Tarifa/min" className="w-full glass-input rounded-xl px-3 py-2 text-sm" />
-                  <div className="flex gap-2">
-                    <button onClick={submitEdit} className="flex-1 py-1.5 bg-pink-600 hover:bg-pink-500 text-white text-xs font-bold rounded-lg transition-all">Guardar</button>
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-400 font-mono">Nombre Completo</label>
+                    <input value={editNombre} onChange={e => setEditNombre(e.target.value)} placeholder="Nombre" className="w-full glass-input rounded-xl px-3 py-1.5 text-sm text-white bg-slate-900/50" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-400 font-mono">Rol de Trabajo</label>
+                    <input value={editRol} onChange={e => setEditRol(e.target.value)} placeholder="Rol de Trabajo" className="w-full glass-input rounded-xl px-3 py-1.5 text-sm text-white bg-slate-900/50" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-400 font-mono">Tarifa</label>
+                    <input type="number" value={editTarifa} onChange={e => setEditTarifa(e.target.value)} placeholder="Tarifa/min" className="w-full glass-input rounded-xl px-3 py-1.5 text-sm text-white bg-slate-900/50" />
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-white/5 border border-white/5 space-y-2 mt-2">
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={editHasAcceso}
+                        onChange={(e) => setEditHasAcceso(e.target.checked)}
+                        className="rounded border-white/10 text-pink-600 focus:ring-pink-500 focus:ring-offset-slate-900"
+                      />
+                      <span className="text-[11px] font-bold text-slate-300 uppercase font-mono">Habilitar Login</span>
+                    </label>
+
+                    {editHasAcceso && (
+                      <div className="space-y-2 pt-2 border-t border-white/5">
+                        <div className="space-y-1">
+                          <label className="text-[9px] text-slate-400 font-mono">Usuario / Cédula</label>
+                          <input value={editUsername} onChange={e => setEditUsername(e.target.value)} placeholder="Usuario" className="w-full glass-input rounded-xl px-3 py-1.5 text-xs text-white bg-slate-900/50" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[9px] text-slate-400 font-mono">Contraseña (Blanco = No Cambiar)</label>
+                          <input type="password" value={editPassword} onChange={e => setEditPassword(e.target.value)} placeholder="Nueva Contraseña" className="w-full glass-input rounded-xl px-3 py-1.5 text-xs text-white bg-slate-900/50" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[9px] text-slate-400 font-mono">Rol de Sistema</label>
+                          <select
+                            value={editRolAcceso}
+                            onChange={(e) => setEditRolAcceso(e.target.value as any)}
+                            className="w-full glass-select rounded-xl px-3 py-1.5 text-xs text-white bg-slate-900/50"
+                          >
+                            <option value="Operario">Operario</option>
+                            <option value="Admin">Administrador</option>
+                            <option value="Visor">Visor</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[9px] text-slate-400 font-mono">Email</label>
+                          <input value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="Email" className="w-full glass-input rounded-xl px-3 py-1.5 text-xs text-white bg-slate-900/50" />
+                        </div>
+                        <label className="flex items-center gap-2 cursor-pointer select-none pt-1">
+                          <input
+                            type="checkbox"
+                            checked={editActivoAcceso}
+                            onChange={(e) => setEditActivoAcceso(e.target.checked)}
+                            className="rounded border-white/10 text-pink-600 focus:ring-pink-500 focus:ring-offset-slate-900"
+                          />
+                          <span className="text-[10px] text-slate-300">Cuenta de Acceso Activa</span>
+                        </label>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button onClick={submitEdit} disabled={isSubmitting} className="flex-1 py-1.5 bg-pink-600 hover:bg-pink-500 text-white text-xs font-bold rounded-lg transition-all disabled:opacity-50">Guardar</button>
                     <button onClick={cancelEdit} className="flex-1 py-1.5 bg-white/5 hover:bg-white/10 text-slate-400 text-xs rounded-lg transition-all">Cancelar</button>
                   </div>
                 </motion.div>
@@ -932,15 +1146,29 @@ function ColaboradoresTab({
                 <DataCard
                   title={c.nombre}
                   subtitle={c.rol || 'Operario'}
-                  badge={{ label: 'Activo', color: 'pink' }}
-                  icon={<Users className="w-4 h-4" />}
+                  badge={
+                    c.usuario 
+                      ? { label: `@${c.usuario.username} (${c.usuario.rol})`, color: c.usuario.activo ? 'pink' : 'slate' } 
+                      : { label: 'Sin Login', color: 'slate' }
+                  }
+                  icon={c.usuario ? (c.usuario.rol === 'Admin' ? <Shield className="w-4 h-4 text-rose-400" /> : <Key className="w-4 h-4 text-blue-400" />) : <Users className="w-4 h-4 text-slate-400" />}
                 >
                   <div className="text-[10px] text-pink-300 font-mono mt-2">
                     Tarifa: Gs. {c.tarifaSugerida || 350}/min (~Gs. {((c.tarifaSugerida || 350) * 60).toLocaleString('es-PY')}/hora)
                   </div>
-                  <div className="flex gap-2 mt-2">
-                    <button onClick={() => startEdit(c)} className="text-[10px] px-2 py-1 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 rounded-lg border border-blue-500/20 transition-all">Editar</button>
-                    <button onClick={() => requestConfirm(`¿Eliminar colaborador?`, `Se eliminará a "${c.nombre}" permanentemente.`, 'danger', () => onDeleteColaborador(c.id), 'Eliminar')} className="text-[10px] px-2 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 rounded-lg border border-rose-500/20 transition-all">Eliminar</button>
+                  {c.usuario && (
+                    <div className="text-[9px] text-slate-400 font-mono mt-1 flex flex-col">
+                      <span>Email: {c.usuario.email || 'No asignado'}</span>
+                      <span>Acceso: {c.usuario.activo ? 'Activo' : 'Suspendido'}</span>
+                    </div>
+                  )}
+                  <div className="flex gap-2 mt-3 pt-2 border-t border-white/5">
+                    <button onClick={() => startEdit(c)} className="text-[10px] px-2 py-1 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 rounded-lg border border-blue-500/20 transition-all flex items-center gap-1 cursor-pointer">
+                      <Edit2 className="w-3 h-3" /> Editar
+                    </button>
+                    <button onClick={() => requestConfirm(`¿Eliminar colaborador?`, `Se eliminará a "${c.nombre}" y su acceso permanentemente.`, 'danger', () => onDeleteColaborador(c.id), 'Eliminar')} className="text-[10px] px-2 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 rounded-lg border border-rose-500/20 transition-all flex items-center gap-1 cursor-pointer">
+                      <Trash2 className="w-3 h-3" /> Eliminar
+                    </button>
                   </div>
                 </DataCard>
               )}
@@ -948,6 +1176,34 @@ function ColaboradoresTab({
           ))}
         </div>
       </AdminSection>
+
+      {/* System Users without Collaborator (e.g. Administrative) */}
+      {data.usuariosSinColaborador && data.usuariosSinColaborador.length > 0 && (
+        <AdminSection
+          title="Usuarios de Sistema (Administración)"
+          icon={<Shield className="w-5 h-5 text-blue-400" />}
+          description="Usuarios que tienen acceso administrativo al sistema sin ser colaboradores en campo"
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {data.usuariosSinColaborador.map(u => (
+              <DataCard
+                key={u.id}
+                title={u.nombre}
+                subtitle={`@${u.username}`}
+                badge={{ label: u.rol, color: u.rol === 'Admin' ? 'rose' : u.rol === 'Visor' ? 'amber' : 'blue' }}
+                icon={<Shield className="w-4 h-4" />}
+              >
+                <div className="text-[10px] text-slate-400 font-mono mt-2">
+                  Email: {u.email || 'No asignado'}
+                </div>
+                <div className="text-[10px] text-slate-400 font-mono">
+                  Estado: {u.activo ? 'Activo' : 'Suspendido'}
+                </div>
+              </DataCard>
+            ))}
+          </div>
+        </AdminSection>
+      )}
     </motion.div>
   );
 }
@@ -975,7 +1231,7 @@ export default function AdminPanel({
 }: AdminPanelProps) {
   const { showToast, requestConfirm } = useNotif();
   // Tabs for the administration panel - usar initialSubTab si existe
-  const [activeSubTab, setActiveSubTab] = useState<'registro' | 'clientes' | 'proyectos' | 'colaboradores' | 'vehiculos' | 'usuarios' | 'marcaciones' | 'auditlog'>(
+  const [activeSubTab, setActiveSubTab] = useState<'registro' | 'clientes' | 'proyectos' | 'colaboradores' | 'vehiculos' | 'marcaciones' | 'auditlog'>(
     (initialSubTab as any) || 'registro'
   );
 
@@ -1002,11 +1258,6 @@ export default function AdminPanel({
   // --- 3. Create Project State ---
   const [newProjClientId, setNewProjClientId] = useState('');
   const [newProjName, setNewProjName] = useState('');
-
-  // --- 4. Create Collaborator State ---
-  const [newColabName, setNewColabName] = useState('');
-  const [newColabTarif, setNewColabTarif] = useState('350');
-  const [newColabRol, setNewColabRol] = useState('Operario');
 
   // Handle collaborator selection tariff updates
   const handleColaboradorSelect = (id: string) => {
@@ -1095,22 +1346,6 @@ export default function AdminPanel({
     }
   };
 
-  // Create Worker
-  const handleCreateCollaborator = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newColabName) return;
-    onAddColaborador({
-      id: `col_${Math.random().toString(36).substring(2, 7)}`,
-      nombre: newColabName,
-      tarifaSugerida: parseFloat(newColabTarif) || 350,
-      rol: newColabRol
-    });
-    setNewColabName('');
-    setNewColabTarif('350');
-    setNewColabRol('Operario');
-    showToast('Colaborador creado en base de datos', 'success');
-  };
-
   return (
     <div id="admin_control_view" className="grid grid-cols-1 lg:grid-cols-4 gap-8 relative z-10">
       
@@ -1179,17 +1414,7 @@ export default function AdminPanel({
             <span>Vehículos ({(data.registrosVehiculo || []).length})</span>
           </button>
 
-          <button
-            onClick={() => setActiveSubTab('usuarios')}
-            className={`flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-semibold shrink-0 cursor-pointer transition-all ${
-              activeSubTab === 'usuarios' 
-                ? 'bg-blue-600/20 text-blue-300 border border-blue-500/30 font-bold' 
-                : 'text-slate-400 hover:bg-white/5'
-            }`}
-          >
-            <Users className="w-4 h-4 text-blue-400" />
-            <span>Usuarios de Acceso</span>
-          </button>
+
 
           <button
             onClick={() => setActiveSubTab('marcaciones')}
@@ -1308,15 +1533,9 @@ export default function AdminPanel({
             <ColaboradoresTab
               key="colaboradores"
               data={data}
-              newColabName={newColabName}
-              setNewColabName={setNewColabName}
-              newColabRol={newColabRol}
-              setNewColabRol={setNewColabRol}
-              newColabTarif={newColabTarif}
-              setNewColabTarif={setNewColabTarif}
-              onCreateCollaborator={handleCreateCollaborator}
-              onEditColaborador={onEditColaborador}
-              onDeleteColaborador={onDeleteColaborador}
+              onAddColaborador={onAddColaborador!}
+              onEditColaborador={onEditColaborador!}
+              onDeleteColaborador={onDeleteColaborador!}
             />
           )}
 
@@ -1326,13 +1545,6 @@ export default function AdminPanel({
               data={data}
               onRefresh={onRefresh || (async () => {})}
               initialEditId={initialVehicleEditId}
-            />
-          )}
-
-          {activeSubTab === 'usuarios' && (
-            <UsuariosTab
-              key="usuarios"
-              colaboradores={data.colaboradores}
             />
           )}
 
