@@ -38,6 +38,31 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Use Network-First strategy for the root HTML to avoid stale bundle errors on new deploys
+  const isHtmlRequest = event.request.mode === 'navigate' || 
+                        event.request.url === self.location.origin + '/' || 
+                        event.request.url.endsWith('/index.html');
+
+  if (isHtmlRequest) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse.status === 200) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() => {
+          return caches.match(event.request) || caches.match('/index.html');
+        })
+    );
+    return;
+  }
+
+  // Cache-First strategy for compiled hashed assets and images
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
@@ -55,7 +80,7 @@ self.addEventListener('fetch', (event) => {
       }).catch(() => {
         // Return index.html as fallback for client-side navigation (SPA)
         if (event.request.mode === 'navigate') {
-          return caches.match('/');
+          return caches.match('/') || caches.match('/index.html');
         }
       });
     })
