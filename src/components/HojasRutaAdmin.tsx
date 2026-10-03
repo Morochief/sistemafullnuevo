@@ -4,6 +4,7 @@ import { Route, Plus, Trash2, X, Users, MessageSquare, Send, CheckCircle, Clock,
 import { authFetchJSON } from '../authFetch.ts';
 import Pagination from './Pagination.tsx';
 import { useSortAndPaginate, getSortIcon, sortableHeaderClass } from '../lib/tableUtils.ts';
+import { useNotif } from '../context/NotifContext.tsx';
 
 interface HojaRutaTarea {
   id: string;
@@ -81,6 +82,7 @@ function calcularPageNumbers(current: number, total: number): (number | string)[
 }
 
 export default function HojasRutaAdmin() {
+  const { showToast, requestConfirm } = useNotif();
   const [hojas, setHojas] = useState<HojaRuta[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -200,22 +202,33 @@ export default function HojasRutaAdmin() {
       });
       if (res.success) {
         setSelectedHoja(res.data);
+        showToast('Cambios y asignaciones guardados correctamente', 'success');
         await fetchHojas();
+      } else {
+        showToast(res.error?.message || 'Error al guardar', 'error');
       }
     } catch (e: any) {
-      setError(e.message || 'Error al guardar');
+      showToast(e.message || 'Error al guardar', 'error');
     }
   }
 
   async function eliminarHoja(id: string) {
-    if (!confirm('¿Eliminar esta hoja de ruta y todas sus tareas?')) return;
-    try {
-      await authFetchJSON(`/api/admin/hojas-ruta/${id}`, { method: 'DELETE' });
-      setSelectedHoja(null);
-      await fetchHojas();
-    } catch (e: any) {
-      setError(e.message || 'Error al eliminar');
-    }
+    requestConfirm(
+      'Eliminar Hoja de Ruta',
+      '¿Estás seguro de que deseas eliminar esta hoja de ruta y todas sus tareas asignadas?',
+      'danger',
+      async () => {
+        try {
+          await authFetchJSON(`/api/admin/hojas-ruta/${id}`, { method: 'DELETE' });
+          setSelectedHoja(null);
+          showToast('Hoja de ruta eliminada', 'success');
+          await fetchHojas();
+        } catch (e: any) {
+          showToast(e.message || 'Error al eliminar', 'error');
+        }
+      },
+      'Eliminar Hoja'
+    );
   }
 
   async function cambiarEstadoRapido(hoja: HojaRuta, nuevoEstado: string) {
@@ -257,12 +270,16 @@ export default function HojasRutaAdmin() {
     }
   }
 
-  function updateTarea(hojaId: string, tareaId: string, campo: string, valor: any) {
+  function updateTareaCampos(tareaId: string, updates: Partial<HojaRutaTarea>) {
     if (!selectedHoja) return;
     const tareas = (selectedHoja.tareas || []).map(t =>
-      t.id === tareaId ? { ...t, [campo]: valor } : t
+      t.id === tareaId ? { ...t, ...updates } : t
     );
     setSelectedHoja({ ...selectedHoja, tareas });
+  }
+
+  function updateTarea(hojaId: string, tareaId: string, campo: string, valor: any) {
+    updateTareaCampos(tareaId, { [campo]: valor });
   }
 
   function agregarTarea() {
@@ -539,8 +556,10 @@ export default function HojasRutaAdmin() {
                             value={t.colaboradorId || ''}
                             onChange={e => {
                               const colab = colaboradores.find(c => c.id === e.target.value);
-                              updateTarea(selectedHoja.id, t.id, 'colaboradorId', e.target.value || null);
-                              updateTarea(selectedHoja.id, t.id, 'operarioNombre', colab?.nombre || 'Sin asignar');
+                              updateTareaCampos(t.id, {
+                                colaboradorId: e.target.value || null,
+                                operarioNombre: colab?.nombre || 'Sin asignar',
+                              });
                             }}
                             className="bg-[#111318] border border-white/10 rounded-md px-2 py-1 text-[10px] text-white focus:outline-none flex-1 min-w-[120px]"
                           >

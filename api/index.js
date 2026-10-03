@@ -195,7 +195,9 @@ async function requireAuth(req, res, next) {
         activo: cached.activo,
         nombre: cached.nombre,
         rol: cached.rol,
-        colaboradorId: cached.colaboradorId
+        colaboradorId: cached.colaboradorId,
+        cargo: cached.cargo,
+        departamento: cached.departamento
       };
     } else {
       let userFromDb = null;
@@ -209,18 +211,35 @@ async function requireAuth(req, res, next) {
         logger.warn("[AUTH] DB lookup failed for", payload.usuario, "- using JWT fallback. Error:", dbError.message);
       }
       if (userFromDb) {
+        let cargo = null;
+        let departamento = null;
+        if (userFromDb.colaboradorId) {
+          try {
+            const colab = await prisma.colaborador.findUnique({
+              where: { id: userFromDb.colaboradorId },
+              select: { cargo: true, departamento: true }
+            });
+            cargo = colab?.cargo || null;
+            departamento = colab?.departamento || null;
+          } catch {
+          }
+        }
         userDetails = {
           activo: userFromDb.activo,
           nombre: userFromDb.nombre,
           rol: mapDbRolToUi(userFromDb.rol),
-          colaboradorId: userFromDb.colaboradorId
+          colaboradorId: userFromDb.colaboradorId,
+          cargo,
+          departamento
         };
       } else {
         userDetails = {
           activo: true,
           nombre: payload.nombre || "",
           rol: payload.rol || "Operario",
-          colaboradorId: payload.colaboradorId || null
+          colaboradorId: payload.colaboradorId || null,
+          cargo: payload.cargo || null,
+          departamento: payload.departamento || null
         };
       }
       userActiveCache.set(cacheKey, {
@@ -231,6 +250,8 @@ async function requireAuth(req, res, next) {
     payload.nombre = userDetails.nombre;
     payload.rol = userDetails.rol;
     payload.colaboradorId = userDetails.colaboradorId;
+    payload.cargo = userDetails.cargo;
+    payload.departamento = userDetails.departamento;
     if (!userDetails.activo) {
       logger.info("[AUTH] REJECTED: User is inactive or deleted:", payload.usuario);
       return res.status(401).json({
@@ -274,6 +295,57 @@ function requireAdmin(req, res, next) {
   }
   logger.info("[ADMIN CHECK] PASSED: User is admin");
   next();
+}
+async function isUserJefeProduccion(user) {
+  if (!user) return false;
+  if (user.rol === "Admin") return true;
+  const username = user.usuario?.toLowerCase() || "";
+  if (username === "2908320") return true;
+  const cargo = (user.cargo || "").toLowerCase();
+  if (cargo.includes("jefe de produccion") || cargo.includes("produccion")) return true;
+  return false;
+}
+async function isUserDiseno(user) {
+  if (!user) return false;
+  if (user.rol === "Admin") return true;
+  const username = user.usuario?.toLowerCase() || "";
+  if (username === "4958075") return true;
+  const cargo = (user.cargo || "").toLowerCase();
+  const dep = (user.departamento || "").toLowerCase();
+  if (cargo.includes("dise\xF1") || dep.includes("dise\xF1")) return true;
+  return false;
+}
+async function requireProduccionOrAdmin(req, res, next) {
+  const user = req.user;
+  if (!user) {
+    return res.status(401).json({
+      success: false,
+      error: { code: "UNAUTHORIZED", message: "Token de autenticaci\xF3n requerido" }
+    });
+  }
+  if (await isUserJefeProduccion(user)) {
+    return next();
+  }
+  return res.status(403).json({
+    success: false,
+    error: { code: "FORBIDDEN", message: "Acceso denegado: se requiere rol de Jefe de Producci\xF3n o Administrador" }
+  });
+}
+async function requireDisenoOrProduccionOrAdmin(req, res, next) {
+  const user = req.user;
+  if (!user) {
+    return res.status(401).json({
+      success: false,
+      error: { code: "UNAUTHORIZED", message: "Token de autenticaci\xF3n requerido" }
+    });
+  }
+  if (await isUserJefeProduccion(user) || await isUserDiseno(user)) {
+    return next();
+  }
+  return res.status(403).json({
+    success: false,
+    error: { code: "FORBIDDEN", message: "Acceso denegado: se requiere rol de Dise\xF1o, Producci\xF3n o Administrador" }
+  });
 }
 function requireWriteAccess(req, res, next) {
   const user = req.user;
@@ -624,7 +696,7 @@ var init_pedidos_routes = __esm({
     init_logger();
     init_shared();
     pedidosRouter = Router7();
-    pedidosRouter.get("/", requireAuth, requireAdmin, async (req, res) => {
+    pedidosRouter.get("/", requireAuth, requireDisenoOrProduccionOrAdmin, async (req, res) => {
       try {
         const { estado, clienteId } = req.query;
         const where = { archivado: false };
@@ -680,7 +752,7 @@ var init_pedidos_routes = __esm({
         res.status(500).json({ success: false, error: { code: "LIST_ERROR", message: "Error al listar pedidos" } });
       }
     });
-    pedidosRouter.put("/:id", requireAuth, requireAdmin, async (req, res) => {
+    pedidosRouter.put("/:id", requireAuth, requireDisenoOrProduccionOrAdmin, async (req, res) => {
       const { id } = req.params;
       const {
         sucursalId,
@@ -781,7 +853,7 @@ var init_pedidos_routes = __esm({
         res.status(500).json({ success: false, error: { code: "UPDATE_ERROR", message: "Error al actualizar pedido" } });
       }
     });
-    pedidosRouter.post("/:id/fotos-entrega", requireAuth, requireAdmin, async (req, res) => {
+    pedidosRouter.post("/:id/fotos-entrega", requireAuth, requireDisenoOrProduccionOrAdmin, async (req, res) => {
       const { id } = req.params;
       const { tipo, fotoBase64, receptorNombre, fechaEntrega } = req.body || {};
       if (!tipo || tipo !== "remision" && tipo !== "entrega") {
@@ -1231,7 +1303,19 @@ authRouter.post("/auth/logout", (req, res) => {
 });
 authRouter.get("/auth/me", requireAuth, (req, res) => {
   const user = req.user;
-  return res.json({ success: true, data: { user: { nombre: user.nombre, rol: user.rol, usuario: user.usuario, colaboradorId: user.colaboradorId || void 0 } } });
+  return res.json({
+    success: true,
+    data: {
+      user: {
+        nombre: user.nombre,
+        rol: user.rol,
+        usuario: user.usuario,
+        colaboradorId: user.colaboradorId || void 0,
+        cargo: user.cargo || void 0,
+        departamento: user.departamento || void 0
+      }
+    }
+  });
 });
 authRouter.get("/auth/users", requireAuth, requireAdmin, async (req, res) => {
   try {
@@ -2575,6 +2659,24 @@ function uploadSingleExcel2(req, res, next) {
     next();
   });
 }
+function normalizeHeader(str) {
+  return (str || "").toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "").trim();
+}
+function getRowValue(row, aliases) {
+  const normAliases = aliases.map(normalizeHeader);
+  for (const [key, val] of Object.entries(row)) {
+    const normKey = normalizeHeader(key);
+    if (normAliases.some((alias) => normKey === alias || normKey.includes(alias) || alias.includes(normKey))) {
+      if (val !== void 0 && val !== null && String(val).trim() !== "") {
+        return val;
+      }
+    }
+  }
+  return "";
+}
+function normalizeEntityName(str) {
+  return (str || "").toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\b(s\.?a\.?|s\.?r\.?l\.?|s\.?a\.?c\.?i\.?|e\.?i\.?r\.?l\.?|s\.?a\.?s\.?)\b/gi, "").replace(/[^a-z0-9]/g, "").trim();
+}
 importRouter.post("/import-excel", requireAuth, requireWriteAccess, uploadSingleExcel2, async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No se subi\xF3 ning\xFAn archivo" });
   try {
@@ -2596,28 +2698,39 @@ importRouter.post("/import-excel", requireAuth, requireWriteAccess, uploadSingle
     const initialColaboradoresCount = tempColaboradores.length;
     const importedItems = [];
     for (const row of rawRows) {
-      const clientName = (row["Cliente"] || row["cliente"] || "").toString().trim();
-      const projectName = (row["Proyecto"] || row["proyecto"] || row["Proyectos"] || "").toString().trim();
-      const fechaRaw = row["Fecha"] || row["fecha"] || row["Fec"];
-      const concepto = (row["Concepto"] || row["concepto"] || "MO").toString().trim().toUpperCase() === "MO" ? "MO" : "Insumo";
-      const descripcion = (row["Descripci\xF3n"] || row["Descripci\xF3n "] || row["descripcion"] || row["Descripcion"] || "").toString().trim();
-      const hsInicio = row["Hs Inicio"] || row["hs_inicio"] || row["Inicio"] || "";
-      const hsFin = row["Hs Fin"] || row["hs_fin"] || row["Fin"] || "";
-      const cantidad = parseFloat(row["Cantidad"] || row["cantidad"] || row["Cant"] || 0);
-      const precioUnitario = parseFloat(row["Precio Unitario"] || row["precio_unitario"] || row["Precio"] || row["Tarifa"] || 0);
-      const computedTotal = parseFloat(row["Total"] || row["total"] || 0);
+      const clientName = String(getRowValue(row, ["Cliente", "Razon Social", "Raz\xF3n Social", "Empresa", "Cliente/Empresa", "Nombre Cliente", "Cuenta"])).trim();
+      const projectName = String(getRowValue(row, ["Proyecto", "Proyectos", "Obra", "OT", "Orden", "Nombre Proyecto"])).trim();
+      const fechaRaw = getRowValue(row, ["Fecha", "Fec", "Dia", "D\xEDa", "Date"]);
+      const conceptoRaw = String(getRowValue(row, ["Concepto", "Tipo", "Rubro", "Categoria", "Categor\xEDa"])).trim().toUpperCase();
+      const concepto = conceptoRaw === "MO" || conceptoRaw === "MANO DE OBRA" ? "MO" : "Insumo";
+      const descripcion = String(getRowValue(row, ["Descripcion", "Descripci\xF3n", "Detalle", "Tarea", "Item", "Observacion", "Observaci\xF3n"])).trim();
+      const hsInicio = getRowValue(row, ["Hs Inicio", "Hora Inicio", "Inicio", "Desde", "Entrada", "Hs. Inicio"]);
+      const hsFin = getRowValue(row, ["Hs Fin", "Hora Fin", "Fin", "Hasta", "Salida", "Hs. Fin"]);
+      const cantidad = parseFloat(getRowValue(row, ["Cantidad", "Cant", "Cant.", "Minutos", "Horas", "Hs", "QTY"])) || 0;
+      const precioUnitario = parseFloat(getRowValue(row, ["Precio Unitario", "Tarifa", "Precio", "Costo Unitario", "P. Unitario", "Tarifa/Hora", "Unitario"])) || 0;
+      const computedTotal = parseFloat(getRowValue(row, ["Total", "Importe", "Monto", "Subtotal"])) || 0;
       let hsTotal = 0;
       if (concepto === "MO" && cantidad > 0) hsTotal = parseFloat((cantidad / 60).toFixed(2));
       if (!clientName && !projectName && !descripcion) continue;
       if (clientName.toLowerCase() === "cliente" || projectName.toLowerCase() === "proyecto") continue;
-      let targetClient = tempClientes.find((c) => c.nombre.toLowerCase() === clientName.toLowerCase());
+      let targetClient = tempClientes.find((c) => {
+        const nc = normalizeEntityName(c.nombre);
+        const ni = normalizeEntityName(clientName);
+        if (!nc || !ni) return false;
+        return nc === ni || ni.length >= 4 && (nc.includes(ni) || ni.includes(nc));
+      });
       if (!targetClient && clientName) {
         targetClient = { id: generateId("cli"), nombre: clientName, codigo: clientName.substring(0, 4).toUpperCase().replace(/[^A-Z0-9]/g, "C"), fechaCreacion: (/* @__PURE__ */ new Date()).toISOString().substring(0, 10) };
         tempClientes.push(targetClient);
       }
       let targetProject = null;
       if (targetClient && projectName) {
-        targetProject = tempProyectos.find((p) => p.nombre.toLowerCase() === projectName.toLowerCase() && p.clienteId === targetClient.id);
+        targetProject = tempProyectos.find((p) => {
+          if (p.clienteId !== targetClient.id) return false;
+          const np = normalizeEntityName(p.nombre);
+          const nip = normalizeEntityName(projectName);
+          return np === nip || nip.length >= 4 && (np.includes(nip) || nip.includes(np));
+        });
         if (!targetProject) {
           targetProject = { id: generateId("pro"), clienteId: targetClient.id, nombre: projectName, estado: "En Proceso", fechaInicio: parseExcelDate(fechaRaw) };
           tempProyectos.push(targetProject);
@@ -2719,7 +2832,7 @@ importRouter.post("/import/confirm", requireAuth, requireWriteAccess, async (req
           proyectoNombreMap.set(created.id, created.nombre);
         }
       }
-      let guardados = 0;
+      const validRegistrosData = [];
       let errores = 0;
       for (const r of registros) {
         const realClienteId = clienteIdMap.get(r.clienteId) || r.clienteId;
@@ -2730,27 +2843,53 @@ importRouter.post("/import/confirm", requireAuth, requireWriteAccess, async (req
           errores++;
           continue;
         }
-        if (!r.fecha || !/^\d{4}-\d{2}-\d{2}$/.test(r.fecha)) {
+        let parsedFecha;
+        if (r.fecha instanceof Date) {
+          parsedFecha = r.fecha;
+        } else if (typeof r.fecha === "string" && /^\d{4}-\d{2}-\d{2}/.test(r.fecha)) {
+          parsedFecha = new Date(r.fecha.substring(0, 10));
+        } else {
+          parsedFecha = /* @__PURE__ */ new Date();
+        }
+        const cantidad = Number(r.cantidad) || 0;
+        const precioUnitario = Number(r.precioUnitario) || 0;
+        if (cantidad <= 0 || precioUnitario <= 0) {
           errores++;
           continue;
         }
-        if (!r.cantidad || r.cantidad <= 0) {
-          errores++;
-          continue;
-        }
-        if (!r.precioUnitario || r.precioUnitario <= 0) {
-          errores++;
-          continue;
-        }
-        const total = r.total > 0 ? r.total : r.cantidad * r.precioUnitario;
+        const total = Number(r.total) > 0 ? Number(r.total) : cantidad * precioUnitario;
         const conceptoRaw = (r.concepto || "").trim().toLowerCase();
         let conceptoValido;
         if (conceptoRaw === "mo" || conceptoRaw === "mano de obra") conceptoValido = "MO";
         else if (conceptoRaw === "insumo" || conceptoRaw === "insumos" || conceptoRaw === "materiales") conceptoValido = "INSUMO";
         else if (conceptoRaw === "vehiculo" || conceptoRaw === "veh\xEDculo" || conceptoRaw === "km") conceptoValido = "VEHICULO";
         else conceptoValido = "INSUMO";
-        await tx.registro.create({ data: { id: generateId("reg"), clienteId: realClienteId, clienteNombre: realClienteNombre, proyectoId: realProyectoId, proyectoNombre: realProyectoNombre, fecha: new Date(r.fecha), concepto: conceptoValido, descripcion: r.descripcion || null, colaboradorId: null, hsInicio: r.hsInicio ? r.hsInicio.substring(0, 5) : null, hsFin: r.hsFin ? r.hsFin.substring(0, 5) : null, hsTotal: r.hsTotal || null, cantidad: new Decimal7(r.cantidad), precioUnitario: new Decimal7(r.precioUnitario), total: new Decimal7(total), origen: "EXCEL", fechaImportacion: /* @__PURE__ */ new Date() } });
-        guardados++;
+        validRegistrosData.push({
+          id: generateId("reg"),
+          clienteId: realClienteId,
+          clienteNombre: realClienteNombre,
+          proyectoId: realProyectoId,
+          proyectoNombre: realProyectoNombre,
+          fecha: parsedFecha,
+          concepto: conceptoValido,
+          descripcion: r.descripcion || null,
+          colaboradorId: null,
+          hsInicio: r.hsInicio ? String(r.hsInicio).substring(0, 5) : null,
+          hsFin: r.hsFin ? String(r.hsFin).substring(0, 5) : null,
+          hsTotal: r.hsTotal ? Number(r.hsTotal) : null,
+          cantidad: new Decimal7(cantidad),
+          precioUnitario: new Decimal7(precioUnitario),
+          total: new Decimal7(total),
+          origen: "EXCEL",
+          fechaImportacion: /* @__PURE__ */ new Date()
+        });
+      }
+      let guardados = 0;
+      const CHUNK_SIZE = 500;
+      for (let i = 0; i < validRegistrosData.length; i += CHUNK_SIZE) {
+        const chunk = validRegistrosData.slice(i, i + CHUNK_SIZE);
+        const res2 = await tx.registro.createMany({ data: chunk });
+        guardados += res2.count;
       }
       return { guardados, errores };
     }, { maxWait: 2e4, timeout: 6e4 });
@@ -2872,7 +3011,7 @@ presupuestosRouter.get("/", requireAuth, requireAdmin, async (req, res) => {
     res.status(500).json({ success: false, error: { code: "LIST_ERROR", message: "Error al listar presupuestos" } });
   }
 });
-presupuestosRouter.get("/ordenes-trabajo", requireAuth, requireAdmin, async (req, res) => {
+presupuestosRouter.get("/ordenes-trabajo", requireAuth, requireProduccionOrAdmin, async (req, res) => {
   try {
     const { estado, clienteId, search } = req.query;
     const where = {};
@@ -2894,7 +3033,115 @@ presupuestosRouter.get("/ordenes-trabajo", requireAuth, requireAdmin, async (req
     res.status(500).json({ success: false, error: { code: "OT_ERROR", message: "Error al listar Ordenes de Trabajo" } });
   }
 });
-presupuestosRouter.get("/ordenes-trabajo/:id", requireAuth, requireAdmin, async (req, res) => {
+presupuestosRouter.post("/ordenes-trabajo/manual", requireAuth, requireProduccionOrAdmin, requireWriteAccess, async (req, res) => {
+  try {
+    const { clienteId, proyecto, contacto, fechaInicio, fechaTope, detallesTrabajo, comentarioCliente, telefono } = req.body || {};
+    if (!clienteId || !proyecto || !detallesTrabajo) {
+      return res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "Cliente, Proyecto y Detalles del trabajo son obligatorios" } });
+    }
+    const cliente = await prisma.cliente.findUnique({ where: { id: clienteId } });
+    if (!cliente) {
+      return res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Cliente no encontrado" } });
+    }
+    const fmtFecha = (d) => {
+      if (!d) return "\u2014";
+      try {
+        const dateObj = new Date(d);
+        const dia = String(dateObj.getDate()).padStart(2, "0");
+        const mes = String(dateObj.getMonth() + 1).padStart(2, "0");
+        const anio = String(dateObj.getFullYear()).slice(-2);
+        return `${dia}/${mes}/${anio}`;
+      } catch {
+        return d;
+      }
+    };
+    const lineas = [
+      `Cliente: ${cliente.nombre}`,
+      `Contacto: ${contacto || "\u2014"}`,
+      `Proyecto: ${proyecto}`,
+      `Fecha de inicio: ${fmtFecha(fechaInicio)}`,
+      `Fecha para culminar: ${fmtFecha(fechaTope)}`,
+      "",
+      "Detalles del trabajo",
+      detallesTrabajo
+    ];
+    if (comentarioCliente) {
+      lineas.push("", "Comentarios de Cliente", comentarioCliente);
+    }
+    const mensaje = lineas.join("\n");
+    let whatsappUrl = "";
+    if (telefono) {
+      const numeroLimpio = String(telefono).replace(/[^0-9]/g, "");
+      whatsappUrl = `https://wa.me/${numeroLimpio}?text=${encodeURIComponent(mensaje)}`;
+    } else {
+      whatsappUrl = `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
+    }
+    const ot = await prisma.$transaction(async (tx) => {
+      const pedId = crypto.randomUUID();
+      await tx.pedido.create({
+        data: {
+          id: pedId,
+          clienteId,
+          sucursalId: "manual",
+          sucursalNombre: "Casa Central",
+          descripcion: `OT Manual: ${proyecto}`,
+          cantidad: 1,
+          tipo: "Trabajo Directo",
+          estado: "Aprobado",
+          contacto: contacto || null,
+          proyecto,
+          comentarioCliente: comentarioCliente || null
+        }
+      });
+      const pId = crypto.randomUUID();
+      await tx.presupuesto.create({
+        data: {
+          id: pId,
+          pedidoId: pedId,
+          clienteId,
+          clienteNombre: cliente.nombre,
+          proyecto,
+          contacto: contacto || null,
+          fechaInicio: fechaInicio ? new Date(fechaInicio) : null,
+          fechaTope: fechaTope ? new Date(fechaTope) : null,
+          estado: "Aprobado",
+          total: 0,
+          markup: 0,
+          comentarioCliente: comentarioCliente || null
+        }
+      });
+      return await tx.ordenTrabajo.create({
+        data: {
+          id: crypto.randomUUID(),
+          presupuestoId: pId,
+          clienteId,
+          clienteNombre: cliente.nombre,
+          proyecto,
+          contacto: contacto || null,
+          fechaInicio: fechaInicio ? new Date(fechaInicio) : null,
+          fechaTope: fechaTope ? new Date(fechaTope) : null,
+          detallesTrabajo,
+          comentarioCliente: comentarioCliente || null,
+          estado: "Generada",
+          mensajeWhatsapp: mensaje
+        }
+      });
+    });
+    auditLog({
+      usuario: req.user.usuario,
+      accion: "create_manual_ot",
+      recurso: `/api/admin/presupuestos/ordenes-trabajo/${ot.id}`,
+      resultado: "success",
+      ip: getClientIp(req),
+      detalle: `OT manual ${ot.id} creada para cliente ${cliente.nombre}`
+    });
+    res.json({ success: true, data: { ...ot, whatsappUrl }, message: "Orden de Trabajo creada exitosamente" });
+  } catch (error) {
+    logger2.error("[PRESUPUESTOS] Error creating manual OT:", error);
+    res.status(500).json({ success: false, error: { code: "CREATE_ERROR", message: "Error al crear Orden de Trabajo: " + error.message } });
+  }
+});
+presupuestosRouter.get("/ordenes-trabajo/:id", requireAuth, requireProduccionOrAdmin, async (req, res) => {
   const { id } = req.params;
   try {
     const ot = await prisma.ordenTrabajo.findUnique({ where: { id } });
@@ -3662,7 +3909,7 @@ presupuestosRouter.post("/:id/orden-trabajo", requireAuth, requireAdmin, require
     res.status(500).json({ success: false, error: { code: "OT_ERROR", message: "Error al generar Orden de Trabajo" } });
   }
 });
-presupuestosRouter.put("/ordenes-trabajo/:id", requireAuth, requireAdmin, requireWriteAccess, async (req, res) => {
+presupuestosRouter.put("/ordenes-trabajo/:id", requireAuth, requireProduccionOrAdmin, requireWriteAccess, async (req, res) => {
   const { id } = req.params;
   try {
     const existing = await prisma.ordenTrabajo.findUnique({ where: { id } });
@@ -3725,7 +3972,7 @@ presupuestosRouter.put("/ordenes-trabajo/:id", requireAuth, requireAdmin, requir
     res.status(500).json({ success: false, error: { code: "OT_ERROR", message: "Error al editar Orden de Trabajo" } });
   }
 });
-presupuestosRouter.delete("/ordenes-trabajo/:id", requireAuth, requireAdmin, requireWriteAccess, async (req, res) => {
+presupuestosRouter.delete("/ordenes-trabajo/:id", requireAuth, requireProduccionOrAdmin, requireWriteAccess, async (req, res) => {
   const { id } = req.params;
   try {
     const existing = await prisma.ordenTrabajo.findUnique({ where: { id } });
@@ -3747,7 +3994,7 @@ presupuestosRouter.delete("/ordenes-trabajo/:id", requireAuth, requireAdmin, req
     res.status(500).json({ success: false, error: { code: "OT_ERROR", message: "Error al eliminar Orden de Trabajo" } });
   }
 });
-presupuestosRouter.post("/ordenes-trabajo/:id/marcar-enviado", requireAuth, requireAdmin, requireWriteAccess, async (req, res) => {
+presupuestosRouter.post("/ordenes-trabajo/:id/marcar-enviado", requireAuth, requireProduccionOrAdmin, requireWriteAccess, async (req, res) => {
   const { id } = req.params;
   try {
     const ot = await prisma.ordenTrabajo.findUnique({ where: { id } });
@@ -3780,7 +4027,7 @@ init_logger();
 import { Router as Router15 } from "express";
 import crypto4 from "crypto";
 var hojasRutaRouter = Router15();
-hojasRutaRouter.get("/", requireAuth, requireAdmin, async (req, res) => {
+hojasRutaRouter.get("/", requireAuth, requireProduccionOrAdmin, async (req, res) => {
   try {
     const {
       estado,
@@ -3847,7 +4094,7 @@ hojasRutaRouter.get("/", requireAuth, requireAdmin, async (req, res) => {
     res.status(500).json({ success: false, error: { code: "LIST_ERROR", message: "Error al listar hojas de ruta" } });
   }
 });
-hojasRutaRouter.get("/:id", requireAuth, requireAdmin, async (req, res) => {
+hojasRutaRouter.get("/:id", requireAuth, requireProduccionOrAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const hoja = await prisma.hojaRuta.findUnique({
@@ -3869,7 +4116,7 @@ hojasRutaRouter.get("/:id", requireAuth, requireAdmin, async (req, res) => {
     res.status(500).json({ success: false, error: { code: "GET_ERROR", message: "Error al obtener hoja de ruta" } });
   }
 });
-hojasRutaRouter.post("/", requireAuth, requireAdmin, requireWriteAccess, async (req, res) => {
+hojasRutaRouter.post("/", requireAuth, requireProduccionOrAdmin, requireWriteAccess, async (req, res) => {
   try {
     const { ordenTrabajoId } = req.body;
     if (!ordenTrabajoId) {
@@ -3960,7 +4207,7 @@ hojasRutaRouter.post("/", requireAuth, requireAdmin, requireWriteAccess, async (
     res.status(500).json({ success: false, error: { code: "CREATE_ERROR", message: "Error al generar hoja de ruta" } });
   }
 });
-hojasRutaRouter.put("/:id", requireAuth, requireAdmin, requireWriteAccess, async (req, res) => {
+hojasRutaRouter.put("/:id", requireAuth, requireProduccionOrAdmin, requireWriteAccess, async (req, res) => {
   try {
     const { id } = req.params;
     const { estado, notas, tareas } = req.body;
@@ -4025,7 +4272,7 @@ hojasRutaRouter.put("/:id", requireAuth, requireAdmin, requireWriteAccess, async
     res.status(500).json({ success: false, error: { code: "UPDATE_ERROR", message: "Error al actualizar hoja de ruta" } });
   }
 });
-hojasRutaRouter.delete("/:id", requireAuth, requireAdmin, requireWriteAccess, async (req, res) => {
+hojasRutaRouter.delete("/:id", requireAuth, requireProduccionOrAdmin, requireWriteAccess, async (req, res) => {
   try {
     const { id } = req.params;
     const hoja = await prisma.hojaRuta.findUnique({ where: { id } });
@@ -4047,7 +4294,7 @@ hojasRutaRouter.delete("/:id", requireAuth, requireAdmin, requireWriteAccess, as
     res.status(500).json({ success: false, error: { code: "DELETE_ERROR", message: "Error al eliminar hoja de ruta" } });
   }
 });
-hojasRutaRouter.post("/:id/whatsapp", requireAuth, requireAdmin, requireWriteAccess, async (req, res) => {
+hojasRutaRouter.post("/:id/whatsapp", requireAuth, requireProduccionOrAdmin, requireWriteAccess, async (req, res) => {
   try {
     const { id } = req.params;
     const { operarioId, telefono } = req.body || {};
@@ -4133,7 +4380,7 @@ hojasRutaRouter.post("/:id/whatsapp", requireAuth, requireAdmin, requireWriteAcc
     res.status(500).json({ success: false, error: { code: "WSP_ERROR", message: "Error al generar mensaje de WhatsApp" } });
   }
 });
-hojasRutaRouter.get("/meta/colaboradores", requireAuth, requireAdmin, async (req, res) => {
+hojasRutaRouter.get("/meta/colaboradores", requireAuth, requireProduccionOrAdmin, async (req, res) => {
   try {
     const colaboradores = await prisma.colaborador.findMany({
       where: {},
@@ -4180,15 +4427,49 @@ async function guardarFotoEvidenciaTarea(tareaId, fotoBase64) {
   await fs6.promises.writeFile(path6.join(uploadsDir, filename), buffer);
   return `/uploads/tareas/${tareaId}/${filename}`;
 }
+async function resolveOperarioColaborador(user) {
+  if (user.colaboradorId) {
+    const colab = await prisma.colaborador.findUnique({ where: { id: user.colaboradorId }, select: { id: true, nombre: true } });
+    if (colab) return colab;
+  }
+  const dbUser = await prisma.usuario.findUnique({
+    where: { username: user.usuario },
+    select: { colaboradorId: true, nombre: true }
+  });
+  if (dbUser?.colaboradorId) {
+    const colab = await prisma.colaborador.findUnique({ where: { id: dbUser.colaboradorId }, select: { id: true, nombre: true } });
+    if (colab) return colab;
+  }
+  const targetNombre = dbUser?.nombre || user.nombre;
+  if (targetNombre) {
+    const colab = await prisma.colaborador.findFirst({
+      where: {
+        OR: [
+          { nombre: { equals: targetNombre, mode: "insensitive" } },
+          { nombre: { contains: targetNombre, mode: "insensitive" } }
+        ]
+      },
+      select: { id: true, nombre: true }
+    });
+    if (colab) return colab;
+  }
+  return { id: null, nombre: targetNombre || null };
+}
 operarioRouter.get("/tareas", requireAuth, async (req, res) => {
   try {
     const user = req.user;
-    const colaboradorId = user.colaboradorId;
-    if (!colaboradorId) {
+    const operario = await resolveOperarioColaborador(user);
+    const orConditions = [];
+    if (operario.id) orConditions.push({ colaboradorId: operario.id });
+    if (operario.nombre) orConditions.push({ operarioNombre: { contains: operario.nombre, mode: "insensitive" } });
+    if (user.rol !== "ADMIN" && orConditions.length === 0) {
       return res.json({ success: true, data: [], pagination: { page: 1, limit: 50, total: 0, totalPages: 0 } });
     }
     const { fecha, estado, page = "1", limit = "50" } = req.query;
-    const where = { colaboradorId };
+    const where = {};
+    if (user.rol !== "ADMIN" && orConditions.length > 0) {
+      where.OR = orConditions;
+    }
     if (estado) where.estado = estado;
     if (fecha) {
       const dia = new Date(fecha);
@@ -4226,19 +4507,25 @@ operarioRouter.get("/tareas", requireAuth, async (req, res) => {
 operarioRouter.get("/tareas/hoy", requireAuth, async (req, res) => {
   try {
     const user = req.user;
-    const colaboradorId = user.colaboradorId;
-    if (!colaboradorId) {
+    const operario = await resolveOperarioColaborador(user);
+    const orConditions = [];
+    if (operario.id) orConditions.push({ colaboradorId: operario.id });
+    if (operario.nombre) orConditions.push({ operarioNombre: { contains: operario.nombre, mode: "insensitive" } });
+    if (user.rol !== "ADMIN" && orConditions.length === 0) {
       return res.json({ success: true, data: [] });
     }
     const hoy = /* @__PURE__ */ new Date();
     hoy.setHours(0, 0, 0, 0);
     const manana = new Date(hoy);
     manana.setDate(manana.getDate() + 1);
+    const where = {
+      fechaAsignada: { gte: hoy, lt: manana }
+    };
+    if (user.rol !== "ADMIN" && orConditions.length > 0) {
+      where.OR = orConditions;
+    }
     const tareas = await prisma.hojaRutaTarea.findMany({
-      where: {
-        colaboradorId,
-        fechaAsignada: { gte: hoy, lt: manana }
-      },
+      where,
       orderBy: [{ orden: "asc" }, { fechaAsignada: "desc" }],
       include: {
         hojaRuta: {
@@ -4257,17 +4544,15 @@ operarioRouter.put("/tareas/:tareaId", requireAuth, async (req, res) => {
     const user = req.user;
     const { tareaId } = req.params;
     const { estado, notasOperario, fotoUrl } = req.body;
-    const colaboradorId = user.colaboradorId;
-    if (!colaboradorId) {
-      return res.status(403).json({ success: false, error: { code: "NO_COLABORADOR", message: "Su usuario no est\xE1 vinculado a un colaborador" } });
-    }
+    const operario = await resolveOperarioColaborador(user);
     const tarea = await prisma.hojaRutaTarea.findUnique({
       where: { id: tareaId }
     });
     if (!tarea) {
       return res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Tarea no encontrada" } });
     }
-    if (tarea.colaboradorId !== colaboradorId) {
+    const isOwner = user.rol === "ADMIN" || operario.id && tarea.colaboradorId === operario.id || operario.nombre && tarea.operarioNombre?.toLowerCase().includes(operario.nombre.toLowerCase());
+    if (!isOwner) {
       return res.status(403).json({ success: false, error: { code: "FORBIDDEN", message: "Esta tarea no est\xE1 asignada a usted" } });
     }
     const estadosValidos = ["Pendiente", "EnProgreso", "Completada", "Omitida"];
@@ -6639,6 +6924,7 @@ app.use("/api/vehiculo", vehiculoRouter);
 app.use("/api/admin/cartera", carteraRouter);
 app.use("/api", importRouter);
 app.use("/api/admin/presupuestos", presupuestosRouter);
+app.use("/api/admin/ordenes-trabajo", presupuestosRouter);
 app.use("/api/admin/hojas-ruta", hojasRutaRouter);
 app.use("/api/operario", operarioRouter);
 app.use("/api", dataRouter);

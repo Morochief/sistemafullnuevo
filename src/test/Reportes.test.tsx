@@ -315,12 +315,12 @@ describe('Reportes', () => {
       await user.click(prefacturaButton);
       
       // Select proyecto
-      const proyectoSelect = screen.getByRole('combobox');
+      const proyectoSelect = screen.getByRole('combobox', { name: /Seleccionar Proyecto/i });
       await user.selectOptions(proyectoSelect, 'proj1');
       
       // Should show cliente info
       await waitFor(() => {
-        expect(screen.getByText('Cliente A')).toBeInTheDocument();
+        expect(screen.getAllByText('Cliente A').length).toBeGreaterThan(0);
         expect(screen.getByText('Proyecto Alpha')).toBeInTheDocument();
       });
     });
@@ -334,7 +334,7 @@ describe('Reportes', () => {
       await user.click(prefacturaButton);
       
       // Select proyecto
-      const proyectoSelect = screen.getByRole('combobox');
+      const proyectoSelect = screen.getByRole('combobox', { name: /Seleccionar Proyecto/i });
       await user.selectOptions(proyectoSelect, 'proj1');
       
       // Should show detail of items
@@ -358,7 +358,7 @@ describe('Reportes', () => {
       await user.click(prefacturaButton);
       
       // Select proyecto with 2 registros (120000 + 15000 = 135000)
-      const proyectoSelect = screen.getByRole('combobox');
+      const proyectoSelect = screen.getByRole('combobox', { name: /Seleccionar Proyecto/i });
       await user.selectOptions(proyectoSelect, 'proj1');
       
       // Should show costo base (multiple instances exist)
@@ -377,7 +377,7 @@ describe('Reportes', () => {
       await user.click(prefacturaButton);
       
       // Select proyecto
-      const proyectoSelect = screen.getByRole('combobox');
+      const proyectoSelect = screen.getByRole('combobox', { name: /Seleccionar Proyecto/i });
       await user.selectOptions(proyectoSelect, 'proj1');
       
       // Markup should be 135000 * 0.35 = 47250
@@ -395,7 +395,7 @@ describe('Reportes', () => {
       await user.click(prefacturaButton);
       
       // Select proyecto
-      const proyectoSelect = screen.getByRole('combobox');
+      const proyectoSelect = screen.getByRole('combobox', { name: /Seleccionar Proyecto/i });
       await user.selectOptions(proyectoSelect, 'proj1');
       
       // Precio venta should be 135000 + 47250 = 182250
@@ -413,7 +413,7 @@ describe('Reportes', () => {
       await user.click(prefacturaButton);
       
       // Select proyecto
-      const proyectoSelect = screen.getByRole('combobox');
+      const proyectoSelect = screen.getByRole('combobox', { name: /Seleccionar Proyecto/i });
       await user.selectOptions(proyectoSelect, 'proj1');
       
       // Should show breakdown
@@ -453,7 +453,7 @@ describe('Reportes', () => {
       await user.click(prefacturaButton);
       
       // Select proyecto
-      const proyectoSelect = screen.getAllByRole('combobox')[0];
+      const proyectoSelect = screen.getByRole('combobox', { name: /Seleccionar Proyecto/i });
       await user.selectOptions(proyectoSelect, 'proj1');
       
       // Change markup to 50%

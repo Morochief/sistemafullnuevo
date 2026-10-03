@@ -47,23 +47,61 @@ async function guardarFotoEvidenciaTarea(tareaId: string, fotoBase64: string): P
   return `/uploads/tareas/${tareaId}/${filename}`;
 }
 
+async function resolveOperarioColaborador(user: { usuario: string; nombre?: string; rol?: string; colaboradorId?: string | null }) {
+  if (user.colaboradorId) {
+    const colab = await prisma.colaborador.findUnique({ where: { id: user.colaboradorId }, select: { id: true, nombre: true } });
+    if (colab) return colab;
+  }
+
+  const dbUser = await prisma.usuario.findUnique({
+    where: { username: user.usuario },
+    select: { colaboradorId: true, nombre: true }
+  });
+  if (dbUser?.colaboradorId) {
+    const colab = await prisma.colaborador.findUnique({ where: { id: dbUser.colaboradorId }, select: { id: true, nombre: true } });
+    if (colab) return colab;
+  }
+
+  const targetNombre = dbUser?.nombre || user.nombre;
+  if (targetNombre) {
+    const colab = await prisma.colaborador.findFirst({
+      where: {
+        OR: [
+          { nombre: { equals: targetNombre, mode: 'insensitive' } },
+          { nombre: { contains: targetNombre, mode: 'insensitive' } },
+        ]
+      },
+      select: { id: true, nombre: true }
+    });
+    if (colab) return colab;
+  }
+
+  return { id: null, nombre: targetNombre || null };
+}
+
 // ═══════════════════════════════════════════════════════════════
 // GET /api/operario/tareas
-// Listar las tareas del operario logueado (filtradas por colaboradorId)
+// Listar las tareas del operario logueado (filtradas por colaboradorId o nombre)
 // Query: ?fecha=YYYY-MM-DD (filtro por día), ?estado=, ?page=, ?limit=
 // ═══════════════════════════════════════════════════════════════
 operarioRouter.get('/tareas', requireAuth, async (req: Request, res: Response) => {
   try {
     const user = req.user!;
-    // Solo operadores pueden acceder (admin puede ver todo si quiere, pero esta ruta es del operario)
-    const colaboradorId = user.colaboradorId;
-    if (!colaboradorId) {
+    const operario = await resolveOperarioColaborador(user);
+    const orConditions: any[] = [];
+    if (operario.id) orConditions.push({ colaboradorId: operario.id });
+    if (operario.nombre) orConditions.push({ operarioNombre: { contains: operario.nombre, mode: 'insensitive' } });
+
+    if (user.rol !== 'ADMIN' && orConditions.length === 0) {
       return res.json({ success: true, data: [], pagination: { page: 1, limit: 50, total: 0, totalPages: 0 } } as ApiResponse);
     }
 
     const { fecha, estado, page = '1', limit = '50' } = req.query as Record<string, string>;
 
-    const where: any = { colaboradorId };
+    const where: any = {};
+    if (user.rol !== 'ADMIN' && orConditions.length > 0) {
+      where.OR = orConditions;
+    }
     if (estado) where.estado = estado;
 
     // Filtro por día: si viene fecha, filtra tareas asignadas ese día
@@ -107,12 +145,16 @@ operarioRouter.get('/tareas', requireAuth, async (req: Request, res: Response) =
 // ═══════════════════════════════════════════════════════════════
 // GET /api/operario/tareas/hoy
 // Atajo: las tareas del día de hoy para el operario logueado
-// ═════════════════════════════════════════════════════════ Eduardo═════
+// ═══════════════════════════════════════════════════════════════
 operarioRouter.get('/tareas/hoy', requireAuth, async (req: Request, res: Response) => {
   try {
     const user = req.user!;
-    const colaboradorId = user.colaboradorId;
-    if (!colaboradorId) {
+    const operario = await resolveOperarioColaborador(user);
+    const orConditions: any[] = [];
+    if (operario.id) orConditions.push({ colaboradorId: operario.id });
+    if (operario.nombre) orConditions.push({ operarioNombre: { contains: operario.nombre, mode: 'insensitive' } });
+
+    if (user.rol !== 'ADMIN' && orConditions.length === 0) {
       return res.json({ success: true, data: [] } as ApiResponse);
     }
 
@@ -121,11 +163,15 @@ operarioRouter.get('/tareas/hoy', requireAuth, async (req: Request, res: Respons
     const manana = new Date(hoy);
     manana.setDate(manana.getDate() + 1);
 
+    const where: any = {
+      fechaAsignada: { gte: hoy, lt: manana },
+    };
+    if (user.rol !== 'ADMIN' && orConditions.length > 0) {
+      where.OR = orConditions;
+    }
+
     const tareas = await prisma.hojaRutaTarea.findMany({
-      where: {
-        colaboradorId,
-        fechaAsignada: { gte: hoy, lt: manana },
-      },
+      where,
       orderBy: [{ orden: 'asc' }, { fechaAsignada: 'desc' }],
       include: {
         hojaRuta: {
@@ -152,19 +198,21 @@ operarioRouter.put('/tareas/:tareaId', requireAuth, async (req: Request, res: Re
     const { tareaId } = req.params;
     const { estado, notasOperario, fotoUrl } = req.body;
 
-    const colaboradorId = user.colaboradorId;
-    if (!colaboradorId) {
-      return res.status(403).json({ success: false, error: { code: 'NO_COLABORADOR', message: 'Su usuario no está vinculado a un colaborador' } } as ApiResponse);
-    }
+    const operario = await resolveOperarioColaborador(user);
 
-    // Verificar que la tarea pertenezca al operario
+    // Verificar que la tarea exista
     const tarea = await prisma.hojaRutaTarea.findUnique({
       where: { id: tareaId },
     });
     if (!tarea) {
       return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Tarea no encontrada' } } as ApiResponse);
     }
-    if (tarea.colaboradorId !== colaboradorId) {
+
+    const isOwner = user.rol === 'ADMIN' ||
+      (operario.id && tarea.colaboradorId === operario.id) ||
+      (operario.nombre && tarea.operarioNombre?.toLowerCase().includes(operario.nombre.toLowerCase()));
+
+    if (!isOwner) {
       return res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Esta tarea no está asignada a usted' } } as ApiResponse);
     }
 

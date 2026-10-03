@@ -26,6 +26,8 @@ import {
   CheckSquare,
   Menu,
   ChevronLeft,
+  X,
+  RefreshCw,
 } from 'lucide-react';
 import { DatabaseState, Cliente, Proyecto, Colaborador } from './types.ts';
 import { authFetch, authFetchJSON, clearCSRFToken } from './authFetch.ts';
@@ -47,6 +49,20 @@ import { NotifProvider, useNotif } from './context/NotifContext.tsx';
 
 type TabType = 'dashboard' | 'registro' | 'import' | 'admin' | 'reportes' | 'misregistros' | 'pedidos' | 'presupuestos' | 'ordenestrabajo' | 'hojasruta' | 'mistareas';
 
+const VALID_TABS: TabType[] = [
+  'dashboard',
+  'registro',
+  'import',
+  'admin',
+  'reportes',
+  'misregistros',
+  'pedidos',
+  'presupuestos',
+  'ordenestrabajo',
+  'hojasruta',
+  'mistareas'
+];
+
 interface SessionUser {
   nombre: string;
   rol: string;
@@ -60,10 +76,26 @@ const ACTIVE_TAB_KEY = 'afull_active_tab';
 function AppInner() {
   const { showToast } = useNotif();
 
+  // Responsive state for mobile detection
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 1024);
+  const [sidebarOpen, setSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < 1024;
+      setIsMobile(mobile);
+      if (mobile) {
+        setSidebarOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // Restore last active tab on refresh (F5)
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     const saved = sessionStorage.getItem(ACTIVE_TAB_KEY);
-    if (saved && (['dashboard', 'registro', 'import', 'admin', 'reportes', 'misregistros', 'pedidos', 'presupuestos'] as TabType[]).includes(saved as TabType)) {
+    if (saved && VALID_TABS.includes(saved as TabType)) {
       return saved as TabType;
     }
     return 'dashboard';
@@ -82,7 +114,6 @@ function AppInner() {
 
   // Cache de pedidos para el modulo de presupuestos
   const [pedidosCache, setPedidosCache] = useState<any[]>([]);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Persist active tab so F5 stays on the same module
   useEffect(() => {
@@ -116,13 +147,18 @@ function AppInner() {
     checkAuthStatus();
   }, []);
 
-  // Check if user is authenticated by attempting to fetch data
+  // Check if user is authenticated by attempting to fetch data with resilient timeout
   const checkAuthStatus = async () => {
     setLoading(true);
+    setFetchError(null);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout for mobile networks
+
     try {
       // First restore user session from JWT cookie
       const meResponse = await fetch('/api/auth/me', {
-        credentials: 'include'
+        credentials: 'include',
+        signal: controller.signal
       });
 
       // Solo cerrar sesión si el servidor respondió 401 explícitamente.
@@ -130,6 +166,7 @@ function AppInner() {
       if (meResponse.status === 401) {
         setSession(null);
         setLoading(false);
+        clearTimeout(timeoutId);
         return;
       }
 
@@ -137,6 +174,7 @@ function AppInner() {
         // Error de red o servidor caído — mantener sesión existente, no cerrar
         setSession(null);
         setLoading(false);
+        clearTimeout(timeoutId);
         return;
       }
 
@@ -144,30 +182,48 @@ function AppInner() {
       if (!meResult.success || !meResult.data?.user) {
         setSession(null);
         setLoading(false);
+        clearTimeout(timeoutId);
         return;
       }
 
-      // Session is valid — restore it
-      setSession(meResult.data.user);
+      const currentUser = meResult.data.user;
+      setSession(currentUser);
+
+      // Si el usuario no es Admin y está en una pestaña no permitida, mandar a registro
+      const isJefe = currentUser.rol === 'Admin' || (currentUser as any).cargo?.toLowerCase().includes('jefe de produccion') || (currentUser as any).cargo?.toLowerCase().includes('produccion') || currentUser.usuario === '2908320';
+      const isDis = currentUser.rol === 'Admin' || (currentUser as any).departamento?.toLowerCase().includes('diseñ') || (currentUser as any).cargo?.toLowerCase().includes('diseñ') || currentUser.usuario === '4958075';
+      const allowedTabsForNonAdmin = ['registro', 'mistareas', 'misregistros'];
+      if (isJefe) allowedTabsForNonAdmin.push('ordenestrabajo', 'hojasruta', 'pedidos');
+      if (isDis) allowedTabsForNonAdmin.push('pedidos');
+
+      if (currentUser.rol !== 'Admin' && !allowedTabsForNonAdmin.includes(activeTab)) {
+        setActiveTab('registro');
+      }
 
       // Then load app data
       const response = await fetch('/api/data', {
-        credentials: 'include'
+        credentials: 'include',
+        signal: controller.signal
       });
       
       if (response.ok) {
         const result = await response.json();
         if (result.success) {
           setDbState(result.data);
+        } else {
+          setFetchError(result.error?.message || 'Error al procesar datos iniciales');
         }
-        // If /api/data fails, session is still valid — user stays logged in
+      } else {
+        setFetchError('Error de conexión al cargar base de datos');
       }
-    } catch (error) {
-      // Error de red (servidor reiniciándose, sin conexión, etc.)
-      // NO cerrar sesión — la cookie JWT sigue siendo válida.
-      // Solo mostrar login si no había sesión previa (carga inicial).
-      setSession(null);
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        setFetchError('La conexión tardó demasiado tiempo. Verificá tu señal de internet móvil.');
+      } else {
+        setSession(null);
+      }
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   };
@@ -539,13 +595,18 @@ function AppInner() {
         });
       }, 250);
 
+      // Only send newly imported records (not existing historical records in DB)
+      const existingIds = new Set((dbState?.registros || []).map(r => r.id));
+      const onlyNewRegistros = newFullDbState.registros.filter(r => !existingIds.has(r.id));
+      const registrosToSend = onlyNewRegistros.length > 0 ? onlyNewRegistros : newFullDbState.registros;
+
       const resData = await authFetchJSON('/api/import/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clientes: newFullDbState.clientes,
           proyectos: newFullDbState.proyectos,
-          registros: newFullDbState.registros
+          registros: registrosToSend
         })
       });
 
@@ -591,11 +652,25 @@ function AppInner() {
   // Loading data after login / restoring session on refresh
   if (loading) {
     return (
-      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-[#090a0f] text-slate-300 relative">
+      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-[#090a0f] text-slate-300 relative p-4">
         <div className="glass-panel p-8 rounded-xl flex flex-col items-center gap-3 text-center max-w-xs border border-white/10 shadow-lg">
           <InfinityIcon className="w-10 h-10 text-orange-500 animate-pulse" />
           <h1 className="font-sans font-semibold text-lg text-white tracking-tight">Sistema aFull</h1>
           <p className="text-xs text-slate-400 font-mono animate-pulse">Sincronizando base de datos...</p>
+          <div className="pt-3 flex flex-col gap-2 w-full border-t border-white/5 mt-2">
+            <button
+              onClick={() => { setLoading(false); checkAuthStatus(); }}
+              className="text-[11px] font-mono text-slate-400 hover:text-white underline cursor-pointer"
+            >
+              ¿Tarda mucho? Reintentar
+            </button>
+            <button
+              onClick={handleLogout}
+              className="text-[11px] font-mono text-rose-400 hover:text-rose-300 cursor-pointer"
+            >
+              Cerrar Sesión
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -604,17 +679,25 @@ function AppInner() {
   // Error state
   if (fetchError || !dbState) {
     return (
-      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-[#090a0f] text-slate-300 relative">
+      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-[#090a0f] text-slate-300 relative p-4">
         <div className="glass-panel p-8 rounded-xl text-center max-w-md space-y-4 border border-rose-500/20">
           <ShieldAlert className="w-10 h-10 text-rose-500 mx-auto" />
           <h1 className="text-lg font-semibold text-white">Error de Conexión</h1>
           <p className="text-red-300 text-xs">{fetchError || 'Fallo al inicializar base de datos local'}</p>
-          <button
-            onClick={fetchDbState}
-            className="px-5 py-2 bg-orange-600 font-medium hover:bg-orange-500 rounded-lg text-white text-xs cursor-pointer transition-colors"
-          >
-            Re-intentar Sincronización
-          </button>
+          <div className="flex flex-col sm:flex-row gap-2 justify-center pt-2">
+            <button
+              onClick={fetchDbState}
+              className="px-5 py-2 bg-orange-600 font-medium hover:bg-orange-500 rounded-md text-white text-xs cursor-pointer transition-colors"
+            >
+              Re-intentar Sincronización
+            </button>
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-md text-slate-400 hover:text-white text-xs cursor-pointer transition-colors border border-white/10"
+            >
+              Cerrar Sesión
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -673,9 +756,20 @@ function AppInner() {
   return (
     <div className="min-h-screen w-full bg-[#090a0f] flex text-slate-200">
       
+      {/* Mobile Backdrop Overlay */}
+      {isMobile && sidebarOpen && (
+        <div 
+          className="fixed inset-0 z-40 bg-black/75 backdrop-blur-xs transition-opacity duration-200"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {/* SIDEBAR CORPORATIVO */}
-      <aside className={`fixed inset-y-0 left-0 z-40 bg-[#0d0e14] border-r border-white/7 transition-all duration-200 flex flex-col ${
-        sidebarOpen ? 'w-64' : 'w-16'
+      <aside className={`fixed inset-y-0 left-0 z-50 bg-[#0d0e14] border-r border-white/7 transition-all duration-200 flex flex-col ${
+        isMobile
+          ? (sidebarOpen ? 'w-72 translate-x-0 shadow-2xl' : 'w-72 -translate-x-full pointer-events-none')
+          : (sidebarOpen ? 'w-64' : 'w-16')
       }`}>
         {/* Sidebar Header / Logo */}
         <div className="h-14 flex items-center justify-between px-3 border-b border-white/7 shrink-0">
@@ -683,41 +777,80 @@ function AppInner() {
             <div className="h-8 w-8 shrink-0 bg-orange-600 rounded-lg flex items-center justify-center text-white font-bold shadow-sm">
               <img src="/Logo-AFULL-_1_.svg" alt="aFull Logo" className="w-5 h-5 object-contain" />
             </div>
-            {sidebarOpen && (
+            {(sidebarOpen || isMobile) && (
               <div className="truncate">
                 <span className="text-xs font-bold uppercase tracking-wider text-white">Sistema aFull</span>
                 <p className="text-[9px] text-slate-400 font-mono tracking-tight uppercase">Plataforma Operativa</p>
               </div>
             )}
           </div>
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
-            title={sidebarOpen ? "Colapsar menú" : "Expandir menú"}
-          >
-            <ChevronLeft className={`w-4 h-4 transition-transform duration-200 ${!sidebarOpen ? 'rotate-180' : ''}`} />
-          </button>
+          {isMobile ? (
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+              title="Cerrar menú"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          ) : (
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+              title={sidebarOpen ? "Colapsar menú" : "Expandir menú"}
+            >
+              <ChevronLeft className={`w-4 h-4 transition-transform duration-200 ${!sidebarOpen ? 'rotate-180' : ''}`} />
+            </button>
+          )}
         </div>
 
         {/* Sidebar Navigation Links */}
         <div className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
           {navItems.map((section, idx) => {
+            const isJefeProduccion = session.rol === 'Admin' || 
+              (session as any).cargo?.toLowerCase().includes('jefe de produccion') || 
+              (session as any).cargo?.toLowerCase().includes('produccion') ||
+              session.usuario === '2908320';
+
+            const isDiseno = session.rol === 'Admin' || 
+              (session as any).departamento?.toLowerCase().includes('diseñ') || 
+              (session as any).cargo?.toLowerCase().includes('diseñ') || 
+              session.usuario === '4958075';
+
             // Filtrar items según rol RBAC
             const visibleItems = section.items.filter(item => {
-              if (session.rol !== 'Admin') {
-                return !item.adminOnly;
+              // Si es Admin: ve todo excepto lo marcado como hideForAdmin (Mis Tareas, Mis Registros)
+              if (session.rol === 'Admin') {
+                if ('hideForAdmin' in item && item.hideForAdmin) {
+                  return false;
+                }
+                return true;
               }
-              if ('hideForAdmin' in item && item.hideForAdmin) {
+
+              // Jefe de Producción (Item 14): OTs, Hojas de Ruta, Pedidos, Registro Operativo, Mis Tareas, Mis Registros
+              if (isJefeProduccion) {
+                if (['registro', 'mistareas', 'misregistros', 'ordenestrabajo', 'hojasruta', 'pedidos'].includes(item.id)) {
+                  return true;
+                }
                 return false;
               }
-              return true;
+
+              // Nachi / Diseño (Item 13): Mis Tareas, Pedidos, Registro Operativo, Mis Registros
+              if (isDiseno) {
+                if (['registro', 'mistareas', 'misregistros', 'pedidos'].includes(item.id)) {
+                  return true;
+                }
+                return false;
+              }
+
+              // Operario general / otros
+              return !item.adminOnly;
             });
 
             if (visibleItems.length === 0) return null;
 
             return (
               <div key={idx} className="space-y-1">
-                {sidebarOpen && (
+                {(sidebarOpen || isMobile) && (
                   <div className="px-2 text-[10px] font-mono uppercase tracking-wider text-slate-500 font-semibold mb-1">
                     {section.group}
                   </div>
@@ -730,8 +863,13 @@ function AppInner() {
                   return (
                     <button
                       key={item.id}
-                      onClick={() => setActiveTab(item.id as TabType)}
-                      title={!sidebarOpen ? item.label : undefined}
+                      onClick={() => {
+                        setActiveTab(item.id as TabType);
+                        if (isMobile) {
+                          setSidebarOpen(false);
+                        }
+                      }}
+                      title={!sidebarOpen && !isMobile ? item.label : undefined}
                       className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer text-left ${
                         isActive
                           ? 'bg-orange-600 text-white font-semibold shadow-sm'
@@ -739,10 +877,10 @@ function AppInner() {
                       }`}
                     >
                       <Icon className="w-4 h-4 shrink-0" />
-                      {sidebarOpen && (
+                      {(sidebarOpen || isMobile) && (
                         <span className="flex-1 truncate">{item.label}</span>
                       )}
-                      {sidebarOpen && showBadge && (
+                      {(sidebarOpen || isMobile) && showBadge && (
                         <span className={`px-1.5 py-0.5 text-[10px] font-mono font-semibold rounded ${
                           isActive ? 'bg-white/20 text-white' : 'bg-orange-500/20 text-orange-400'
                         }`}>
@@ -759,7 +897,7 @@ function AppInner() {
 
         {/* Sidebar Footer: Usuario & Logout */}
         <div className="p-2 border-t border-white/7 shrink-0 bg-[#0b0c11]">
-          {sidebarOpen ? (
+          {(sidebarOpen || isMobile) ? (
             <div className="flex items-center justify-between p-1.5 rounded-lg bg-white/3">
               <div className="flex items-center gap-2 truncate">
                 <div className="w-7 h-7 rounded-md bg-slate-800 flex items-center justify-center text-slate-300 font-semibold text-xs shrink-0">
@@ -797,19 +935,30 @@ function AppInner() {
 
       {/* CONTENEDOR PRINCIPAL */}
       <div className={`flex-1 flex flex-col min-w-0 transition-all duration-200 ${
-        sidebarOpen ? 'pl-64' : 'pl-16'
+        isMobile ? 'pl-0' : (sidebarOpen ? 'pl-64' : 'pl-16')
       }`}>
         
         {/* TOPBAR MINIMALISTA */}
-        <header className="sticky top-0 z-30 h-14 bg-[#090a0f]/90 backdrop-blur-md border-b border-white/7 px-6 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-mono text-slate-400 uppercase tracking-wider">Módulo:</span>
-            <span className="text-xs font-semibold text-white uppercase tracking-wider">
+        <header className="sticky top-0 z-30 h-14 bg-[#090a0f]/90 backdrop-blur-md border-b border-white/7 px-4 sm:px-6 flex items-center justify-between">
+          <div className="flex items-center gap-2.5 sm:gap-3 overflow-hidden">
+            {/* Hamburger button on mobile / tablet */}
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="lg:hidden p-1.5 -ml-1 rounded-md text-slate-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+              title="Abrir menú de navegación"
+              aria-label="Abrir menú"
+            >
+              <Menu className="w-5 h-5 text-orange-400" />
+            </button>
+
+            <span className="text-[10px] sm:text-xs font-mono text-slate-400 uppercase tracking-wider hidden sm:inline">Módulo:</span>
+            <span className="text-xs font-semibold text-white uppercase tracking-wider truncate max-w-[150px] xs:max-w-none">
               {activeTab === 'dashboard' && 'Panel de Control'}
               {activeTab === 'registro' && 'Registro Operativo'}
               {activeTab === 'misregistros' && 'Mis Registros'}
               {activeTab === 'pedidos' && 'Pedidos de Clientes'}
               {activeTab === 'presupuestos' && 'Presupuestos Comerciales'}
+              {activeTab === 'ordenestrabajo' && 'Órdenes de Trabajo'}
               {activeTab === 'hojasruta' && 'Hojas de Ruta'}
               {activeTab === 'mistareas' && 'Mis Tareas y Montajes'}
               {activeTab === 'import' && 'Importación de Planillas Excel'}
@@ -818,7 +967,7 @@ function AppInner() {
             </span>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
             {/* Marcaciones UI con Geocerca */}
             {session.usuario && (
               <MarcacionesUI usuario={session.usuario} showToast={showToast} />
@@ -827,7 +976,7 @@ function AppInner() {
         </header>
 
         {/* MAIN CONTENT AREA */}
-        <main className="flex-1 p-6 max-w-7xl w-full mx-auto">
+        <main className="flex-1 p-3 sm:p-6 max-w-7xl w-full mx-auto">
         <AnimatePresence mode="wait">
           {activeTab === 'dashboard' && (
             <motion.div

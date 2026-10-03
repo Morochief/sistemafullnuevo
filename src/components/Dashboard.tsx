@@ -70,27 +70,30 @@ interface DashboardProps {
   onNavigateToVehicleEdit?: (vehicleId: string) => void;
 }
 
-const COLORS = ['#3b82f6', '#06b6d4', '#6366f1', '#10b981', '#14b8a6', '#f43f5e'];
+const COLORS = ['#ea580c', '#f97316', '#fb923c', '#fdba74', '#f59e0b', '#d97706'];
 
 // FASE 4: Tipos para ordenamiento
 type SortField = 'fecha' | 'clienteNombre' | 'proyectoNombre' | 'concepto' | 'total' | 'precioUnitario' | 'cantidad';
 type SortOrder = 'asc' | 'desc';
 
 const SortIcon = ({ field, currentField, currentOrder }: { field: SortField; currentField: SortField; currentOrder: SortOrder }) => {
-  if (currentField !== field) return <ArrowUpDown className="w-3.5 h-3.5 text-slate-500 group-hover:text-blue-400 transition-colors" />;
+  if (currentField !== field) return <ArrowUpDown className="w-3.5 h-3.5 text-slate-500 group-hover:text-orange-400 transition-colors" />;
   return currentOrder === 'asc'
-    ? <ArrowUp className="w-3.5 h-3.5 text-blue-400" />
-    : <ArrowDown className="w-3.5 h-3.5 text-blue-400" />;
+    ? <ArrowUp className="w-3.5 h-3.5 text-orange-400" />
+    : <ArrowDown className="w-3.5 h-3.5 text-orange-400" />;
 };
 
 const FilterBadge = () => (
   <div className="absolute top-2 right-2">
-    <span className="text-[9px] font-mono bg-blue-500/20 text-blue-300 border border-blue-500/30 px-1.5 py-0.5 rounded">Filtrado</span>
+    <span className="text-[9px] font-mono bg-orange-500/20 text-orange-400 border border-orange-500/30 px-1.5 py-0.5 rounded">Filtrado</span>
   </div>
 );
 
 export default function Dashboard({ data, onNavigateImport, onDeleteRegistro, onEditRegistro, onNavigateToVehicleEdit }: DashboardProps) {
   
+  // Estado para modo de visualización de ranking de horas (Proyecto vs Colaborador)
+  const [rankingViewMode, setRankingViewMode] = useState<'proyecto' | 'colaborador'>('proyecto');
+
   // Estado para el modal de edición
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingRegistro, setEditingRegistro] = useState<RegistroItem | null>(null);
@@ -496,21 +499,63 @@ export default function Dashboard({ data, onNavigateImport, onDeleteRegistro, on
     return Object.entries(map).map(([name, value]) => ({ name, value })).filter(item => item.value > 0);
   }, [filteredRegistros]);
 
-  // 3. Prepare Data for Charts: Hours per Project
+  // 3. Prepare Data for Charts: Hours per Project (Orden Descendente)
   const projectHoursData = useMemo(() => {
     const map: Record<string, number> = {};
     filteredRegistros
-      .filter(r => r.concepto === 'MO' && r.hsTotal)
+      .filter(r => r.concepto === 'MO')
       .forEach(r => {
-        map[r.proyectoNombre] = (map[r.proyectoNombre] || 0) + (r.hsTotal || 0);
+        const hours = r.hsTotal ? r.hsTotal : (r.cantidad ? r.cantidad / 60 : 0);
+        map[r.proyectoNombre] = (map[r.proyectoNombre] || 0) + hours;
       });
     return Object.entries(map)
       .map(([name, hours]) => ({ 
         name: name.length > 25 ? name.substring(0, 22) + '...' : name, 
         horas: parseFloat(hours.toFixed(2)) 
       }))
-      .filter(item => item.horas > 0);
+      .filter(item => item.horas > 0)
+      .sort((a, b) => b.horas - a.horas);
   }, [filteredRegistros]);
+
+  // Horas por Colaborador (Orden Descendente)
+  const colaboradorHoursData = useMemo(() => {
+    const map: Record<string, number> = {};
+    const colMap = new Map((data.colaboradores || []).map(c => [c.id, c.nombre]));
+
+    filteredRegistros
+      .filter(r => r.concepto === 'MO')
+      .forEach(r => {
+        const hours = r.hsTotal ? r.hsTotal : (r.cantidad ? r.cantidad / 60 : 0);
+        let colNombre = 'General / Taller';
+        if (r.colaboradorId && colMap.has(r.colaboradorId)) {
+          colNombre = colMap.get(r.colaboradorId)!;
+        } else if (r.descripcion) {
+          const found = (data.colaboradores || []).find(c => 
+            c.nombre && (
+              r.descripcion.toLowerCase().includes(c.nombre.toLowerCase()) || 
+              c.nombre.toLowerCase().includes(r.descripcion.toLowerCase())
+            )
+          );
+          if (found) {
+            colNombre = found.nombre;
+          } else {
+            const candidate = r.descripcion.split(/[-–—:]/)[0].trim();
+            if (candidate && candidate.length < 30) {
+              colNombre = candidate;
+            }
+          }
+        }
+        map[colNombre] = (map[colNombre] || 0) + hours;
+      });
+
+    return Object.entries(map)
+      .map(([name, hours]) => ({
+        name: name.length > 25 ? name.substring(0, 22) + '...' : name,
+        horas: parseFloat(hours.toFixed(2))
+      }))
+      .filter(item => item.horas > 0)
+      .sort((a, b) => b.horas - a.horas);
+  }, [filteredRegistros, data.colaboradores]);
 
   // 4. Monthly or Daily trend data (cumulative costs) - FILTRADO
   const costTrendData = useMemo(() => {
@@ -708,8 +753,8 @@ export default function Dashboard({ data, onNavigateImport, onDeleteRegistro, on
                 <AreaChart data={costTrendData} margin={{ left: -10, right: 10, top: 10, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4}/>
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#ea580c" stopOpacity={0.4}/>
+                      <stop offset="95%" stopColor="#ea580c" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
                   <XAxis dataKey="fecha" stroke="#475569" fontSize={11} tickLine={false} />
@@ -717,9 +762,9 @@ export default function Dashboard({ data, onNavigateImport, onDeleteRegistro, on
                   <Tooltip 
                     contentStyle={{ backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.1)', color: '#fff', borderRadius: '12px' }}
                     formatter={(value: any) => [formatGuaranies(parseFloat(value)), 'Costo Total']}
-                    cursor={{ stroke: 'rgba(59, 130, 246, 0.5)', strokeWidth: 2 }}
+                    cursor={{ stroke: 'rgba(234, 88, 12, 0.5)', strokeWidth: 2 }}
                   />
-                  <Area type="monotone" dataKey="total" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorTotal)" />
+                  <Area type="monotone" dataKey="total" stroke="#ea580c" strokeWidth={2} fillOpacity={1} fill="url(#colorTotal)" />
                 </AreaChart>
               </ResponsiveContainer>
             )}
@@ -736,11 +781,11 @@ export default function Dashboard({ data, onNavigateImport, onDeleteRegistro, on
           <div>
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-sans font-medium text-base text-white flex items-center gap-2">
-                <Layers className="w-5 h-5 text-cyan-400" />
+                <Layers className="w-5 h-5 text-orange-400" />
                 <span>Costos por Cliente</span>
               </h3>
               {hasActiveFilters && (
-                <span className="text-[9px] font-mono bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded">
+                <span className="text-[9px] font-mono bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-0.5 rounded">
                   Filtrado
                 </span>
               )}
@@ -799,7 +844,7 @@ export default function Dashboard({ data, onNavigateImport, onDeleteRegistro, on
           </div>
         </motion.div>
 
-        {/* Chart C: Hours per Project (Bar Chart) */}
+        {/* Chart C: Ranking de Horas de MO (Bar Chart Ordenado de Mayor a Menor) */}
         <motion.div 
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -807,40 +852,73 @@ export default function Dashboard({ data, onNavigateImport, onDeleteRegistro, on
           className="glass-panel p-6 rounded-2xl lg:col-span-3 flex flex-col justify-between"
         >
           <div>
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
               <h3 className="font-sans font-medium text-base text-white flex items-center gap-2">
-                <Hammer className="w-5 h-5 text-pink-400" />
-                <span>Consumo de Horas de Mano de Obra por Proyecto</span>
-              </h3>
-              {hasActiveFilters && (
-                <span className="text-[9px] font-mono bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded">
-                  Filtrado
+                <Hammer className="w-5 h-5 text-orange-400" />
+                <span>
+                  {rankingViewMode === 'proyecto' 
+                    ? 'Ranking de Horas de Mano de Obra por Proyecto (Mayor a Menor)' 
+                    : 'Ranking de Horas de Mano de Obra por Colaborador (Mayor a Menor)'}
                 </span>
-              )}
+              </h3>
+              
+              <div className="flex items-center gap-2">
+                {/* Selector de Vista: Proyecto vs Colaborador */}
+                <div className="flex items-center bg-[#090a0f] border border-white/10 p-0.5 rounded-md text-xs">
+                  <button
+                    onClick={() => setRankingViewMode('proyecto')}
+                    className={`px-3 py-1 rounded font-medium transition-all cursor-pointer ${
+                      rankingViewMode === 'proyecto'
+                        ? 'bg-orange-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Por Proyecto
+                  </button>
+                  <button
+                    onClick={() => setRankingViewMode('colaborador')}
+                    className={`px-3 py-1 rounded font-medium transition-all cursor-pointer ${
+                      rankingViewMode === 'colaborador'
+                        ? 'bg-orange-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Por Colaborador
+                  </button>
+                </div>
+
+                {hasActiveFilters && (
+                  <span className="text-[9px] font-mono bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-0.5 rounded">
+                    Filtrado
+                  </span>
+                )}
+              </div>
             </div>
             <p className="text-xs text-slate-400 mb-6 font-sans">
-              {hasActiveFilters
-                ? 'Horas de MO filtradas según criterios seleccionados.'
-                : 'Visualización comparativa de dedicación (MO) en horas reales de colaboradores.'
-              }
+              {rankingViewMode === 'proyecto'
+                ? 'Visualización comparativa ordenada de forma descendente según dedicación de horas por proyecto.'
+                : 'Visualización comparativa ordenada de forma descendente según las horas reales cargadas por cada colaborador.'}
             </p>
           </div>
           <div className="h-60 w-full" style={{ minWidth: 0 }}>
-            {projectHoursData.length === 0 ? (
+            {(rankingViewMode === 'proyecto' ? projectHoursData : colaboradorHoursData).length === 0 ? (
               <div className="h-full flex items-center justify-center text-slate-500 text-sm font-mono">
                 No hay horas de Mano de Obra registradas aún
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={projectHoursData} margin={{ left: -10, right: 10, top: 10, bottom: 20 }}>
+                <BarChart 
+                  data={rankingViewMode === 'proyecto' ? projectHoursData : colaboradorHoursData} 
+                  margin={{ left: -10, right: 10, top: 10, bottom: 20 }}
+                >
                   <XAxis dataKey="name" stroke="#475569" fontSize={10} angle={-15} textAnchor="end" interval={0} height={45} />
                   <YAxis stroke="#475569" fontSize={11} tickFormatter={(val) => `${val}h`} tickLine={false} />
                   <Tooltip 
                     contentStyle={{ backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.1)', color: '#fff', borderRadius: '12px' }}
-                    formatter={(value: any) => [`${value} horas`, 'Mano de Obra']}
-                    cursor={{ fill: 'rgba(59, 130, 246, 0.1)' }}
+                    formatter={(value: any) => [`${value} horas`, rankingViewMode === 'proyecto' ? 'Horas Proyecto' : 'Horas Colaborador']}
+                    cursor={{ fill: 'rgba(234, 88, 12, 0.1)' }}
                   />
-                  <Bar dataKey="horas" fill="#3b82f6" radius={[6, 6, 0, 0]} barSize={40} />
+                  <Bar dataKey="horas" fill="#ea580c" radius={[4, 4, 0, 0]} barSize={40} />
                 </BarChart>
               </ResponsiveContainer>
             )}

@@ -35,6 +35,40 @@ function uploadSingleExcel(req: Request, res: Response, next: NextFunction) {
   });
 }
 
+function normalizeHeader(str: string): string {
+  return (str || '')
+    .toString()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
+}
+
+function getRowValue(row: any, aliases: string[]): any {
+  const normAliases = aliases.map(normalizeHeader);
+  for (const [key, val] of Object.entries(row)) {
+    const normKey = normalizeHeader(key);
+    if (normAliases.some(alias => normKey === alias || normKey.includes(alias) || alias.includes(normKey))) {
+      if (val !== undefined && val !== null && String(val).trim() !== '') {
+        return val;
+      }
+    }
+  }
+  return '';
+}
+
+function normalizeEntityName(str: string): string {
+  return (str || '')
+    .toString()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\b(s\.?a\.?|s\.?r\.?l\.?|s\.?a\.?c\.?i\.?|e\.?i\.?r\.?l\.?|s\.?a\.?s\.?)\b/gi, '')
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
+}
+
 // POST /api/import-excel — Parse uploaded Excel file
 importRouter.post('/import-excel', requireAuth, requireWriteAccess, uploadSingleExcel, async (req: Request, res: Response) => {
   if (!req.file) return res.status(400).json({ error: 'No se subió ningún archivo' });
@@ -60,23 +94,30 @@ importRouter.post('/import-excel', requireAuth, requireWriteAccess, uploadSingle
     const importedItems: any[] = [];
 
     for (const row of rawRows) {
-      const clientName = (row['Cliente'] || row['cliente'] || '').toString().trim();
-      const projectName = (row['Proyecto'] || row['proyecto'] || row['Proyectos'] || '').toString().trim();
-      const fechaRaw = row['Fecha'] || row['fecha'] || row['Fec'];
-      const concepto = (row['Concepto'] || row['concepto'] || 'MO').toString().trim().toUpperCase() === 'MO' ? 'MO' : 'Insumo';
-      const descripcion = (row['Descripción'] || row['Descripción '] || row['descripcion'] || row['Descripcion'] || '').toString().trim();
-      const hsInicio = row['Hs Inicio'] || row['hs_inicio'] || row['Inicio'] || '';
-      const hsFin = row['Hs Fin'] || row['hs_fin'] || row['Fin'] || '';
-      const cantidad = parseFloat(row['Cantidad'] || row['cantidad'] || row['Cant'] || 0);
-      const precioUnitario = parseFloat(row['Precio Unitario'] || row['precio_unitario'] || row['Precio'] || row['Tarifa'] || 0);
-      const computedTotal = parseFloat(row['Total'] || row['total'] || 0);
+      const clientName = String(getRowValue(row, ['Cliente', 'Razon Social', 'Razón Social', 'Empresa', 'Cliente/Empresa', 'Nombre Cliente', 'Cuenta'])).trim();
+      const projectName = String(getRowValue(row, ['Proyecto', 'Proyectos', 'Obra', 'OT', 'Orden', 'Nombre Proyecto'])).trim();
+      const fechaRaw = getRowValue(row, ['Fecha', 'Fec', 'Dia', 'Día', 'Date']);
+      const conceptoRaw = String(getRowValue(row, ['Concepto', 'Tipo', 'Rubro', 'Categoria', 'Categoría'])).trim().toUpperCase();
+      const concepto = conceptoRaw === 'MO' || conceptoRaw === 'MANO DE OBRA' ? 'MO' : 'Insumo';
+      const descripcion = String(getRowValue(row, ['Descripcion', 'Descripción', 'Detalle', 'Tarea', 'Item', 'Observacion', 'Observación'])).trim();
+      const hsInicio = getRowValue(row, ['Hs Inicio', 'Hora Inicio', 'Inicio', 'Desde', 'Entrada', 'Hs. Inicio']);
+      const hsFin = getRowValue(row, ['Hs Fin', 'Hora Fin', 'Fin', 'Hasta', 'Salida', 'Hs. Fin']);
+      const cantidad = parseFloat(getRowValue(row, ['Cantidad', 'Cant', 'Cant.', 'Minutos', 'Horas', 'Hs', 'QTY'])) || 0;
+      const precioUnitario = parseFloat(getRowValue(row, ['Precio Unitario', 'Tarifa', 'Precio', 'Costo Unitario', 'P. Unitario', 'Tarifa/Hora', 'Unitario'])) || 0;
+      const computedTotal = parseFloat(getRowValue(row, ['Total', 'Importe', 'Monto', 'Subtotal'])) || 0;
       let hsTotal = 0;
       if (concepto === 'MO' && cantidad > 0) hsTotal = parseFloat((cantidad / 60).toFixed(2));
 
       if (!clientName && !projectName && !descripcion) continue;
       if (clientName.toLowerCase() === 'cliente' || projectName.toLowerCase() === 'proyecto') continue;
 
-      let targetClient = tempClientes.find(c => c.nombre.toLowerCase() === clientName.toLowerCase());
+      let targetClient = tempClientes.find(c => {
+        const nc = normalizeEntityName(c.nombre);
+        const ni = normalizeEntityName(clientName);
+        if (!nc || !ni) return false;
+        return nc === ni || (ni.length >= 4 && (nc.includes(ni) || ni.includes(nc)));
+      });
+
       if (!targetClient && clientName) {
         targetClient = { id: generateId('cli'), nombre: clientName, codigo: clientName.substring(0, 4).toUpperCase().replace(/[^A-Z0-9]/g, 'C'), fechaCreacion: new Date().toISOString().substring(0, 10) };
         tempClientes.push(targetClient);
@@ -84,7 +125,13 @@ importRouter.post('/import-excel', requireAuth, requireWriteAccess, uploadSingle
 
       let targetProject = null;
       if (targetClient && projectName) {
-        targetProject = tempProyectos.find(p => p.nombre.toLowerCase() === projectName.toLowerCase() && p.clienteId === targetClient!.id);
+        targetProject = tempProyectos.find(p => {
+          if (p.clienteId !== targetClient!.id) return false;
+          const np = normalizeEntityName(p.nombre);
+          const nip = normalizeEntityName(projectName);
+          return np === nip || (nip.length >= 4 && (np.includes(nip) || nip.includes(np)));
+        });
+
         if (!targetProject) {
           targetProject = { id: generateId('pro'), clienteId: targetClient.id, nombre: projectName, estado: 'En Proceso' as const, fechaInicio: parseExcelDate(fechaRaw) };
           tempProyectos.push(targetProject);
@@ -191,7 +238,7 @@ importRouter.post('/import/confirm', requireAuth, requireWriteAccess, async (req
           proyectoNombreMap.set(created.id, created.nombre);
         }
       }
-      let guardados = 0;
+      const validRegistrosData: any[] = [];
       let errores = 0;
       for (const r of registros) {
         const realClienteId = clienteIdMap.get(r.clienteId) || r.clienteId;
@@ -199,18 +246,54 @@ importRouter.post('/import/confirm', requireAuth, requireWriteAccess, async (req
         const realClienteNombre = clienteNombreMap.get(realClienteId);
         const realProyectoNombre = proyectoNombreMap.get(realProyectoId);
         if (!realClienteId || !realProyectoId || !realClienteNombre || !realProyectoNombre) { errores++; continue; }
-        if (!r.fecha || !/^\d{4}-\d{2}-\d{2}$/.test(r.fecha)) { errores++; continue; }
-        if (!r.cantidad || r.cantidad <= 0) { errores++; continue; }
-        if (!r.precioUnitario || r.precioUnitario <= 0) { errores++; continue; }
-        const total = r.total > 0 ? r.total : r.cantidad * r.precioUnitario;
+        
+        let parsedFecha: Date;
+        if (r.fecha instanceof Date) {
+          parsedFecha = r.fecha;
+        } else if (typeof r.fecha === 'string' && /^\d{4}-\d{2}-\d{2}/.test(r.fecha)) {
+          parsedFecha = new Date(r.fecha.substring(0, 10));
+        } else {
+          parsedFecha = new Date();
+        }
+
+        const cantidad = Number(r.cantidad) || 0;
+        const precioUnitario = Number(r.precioUnitario) || 0;
+        if (cantidad <= 0 || precioUnitario <= 0) { errores++; continue; }
+        const total = Number(r.total) > 0 ? Number(r.total) : cantidad * precioUnitario;
         const conceptoRaw = (r.concepto || '').trim().toLowerCase();
         let conceptoValido: 'MO' | 'INSUMO' | 'VEHICULO';
         if (conceptoRaw === 'mo' || conceptoRaw === 'mano de obra') conceptoValido = 'MO';
         else if (conceptoRaw === 'insumo' || conceptoRaw === 'insumos' || conceptoRaw === 'materiales') conceptoValido = 'INSUMO';
         else if (conceptoRaw === 'vehiculo' || conceptoRaw === 'vehículo' || conceptoRaw === 'km') conceptoValido = 'VEHICULO';
         else conceptoValido = 'INSUMO';
-        await tx.registro.create({ data: { id: generateId('reg'), clienteId: realClienteId, clienteNombre: realClienteNombre, proyectoId: realProyectoId, proyectoNombre: realProyectoNombre, fecha: new Date(r.fecha), concepto: conceptoValido, descripcion: r.descripcion || null, colaboradorId: null, hsInicio: r.hsInicio ? r.hsInicio.substring(0, 5) : null, hsFin: r.hsFin ? r.hsFin.substring(0, 5) : null, hsTotal: r.hsTotal || null, cantidad: new Decimal(r.cantidad), precioUnitario: new Decimal(r.precioUnitario), total: new Decimal(total), origen: 'EXCEL', fechaImportacion: new Date() } });
-        guardados++;
+
+        validRegistrosData.push({
+          id: generateId('reg'),
+          clienteId: realClienteId,
+          clienteNombre: realClienteNombre,
+          proyectoId: realProyectoId,
+          proyectoNombre: realProyectoNombre,
+          fecha: parsedFecha,
+          concepto: conceptoValido,
+          descripcion: r.descripcion || null,
+          colaboradorId: null,
+          hsInicio: r.hsInicio ? String(r.hsInicio).substring(0, 5) : null,
+          hsFin: r.hsFin ? String(r.hsFin).substring(0, 5) : null,
+          hsTotal: r.hsTotal ? Number(r.hsTotal) : null,
+          cantidad: new Decimal(cantidad),
+          precioUnitario: new Decimal(precioUnitario),
+          total: new Decimal(total),
+          origen: 'EXCEL',
+          fechaImportacion: new Date()
+        });
+      }
+
+      let guardados = 0;
+      const CHUNK_SIZE = 500;
+      for (let i = 0; i < validRegistrosData.length; i += CHUNK_SIZE) {
+        const chunk = validRegistrosData.slice(i, i + CHUNK_SIZE);
+        const res = await tx.registro.createMany({ data: chunk });
+        guardados += res.count;
       }
       return { guardados, errores };
     }, { maxWait: 20000, timeout: 60000 });

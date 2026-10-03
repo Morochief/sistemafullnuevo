@@ -79,11 +79,12 @@ self.addEventListener('fetch', (event) => {
           });
         }
         return networkResponse;
-      }).catch(() => {
+      }).catch(async () => {
         // Return index.html as fallback for client-side navigation (SPA)
         if (event.request.mode === 'navigate') {
-          return caches.match('/') || caches.match('/index.html');
+          return (await caches.match('/')) || (await caches.match('/index.html')) || new Response('Offline', { status: 503 });
         }
+        return new Response('Network error or offline', { status: 504, headers: { 'Content-Type': 'text/plain' } });
       });
     })
   );

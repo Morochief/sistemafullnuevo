@@ -41,6 +41,7 @@ import {
   Users,
   Trash2,
   Layers,
+  Sparkles,
 } from 'lucide-react';
 import { authFetchJSON } from '../authFetch.ts';
 import { DatabaseState, PauseRecord } from '../types.ts';
@@ -222,9 +223,16 @@ function TabPanel({ id, children }: { id: string; children: React.ReactNode }) {
  */
 interface UseTimerOptions {
   currentUser: { nombre: string; rol: string; usuario: string } | null;
+  onRestoreContext?: (ctx: {
+    clienteId?: string;
+    proyectoId?: string;
+    colaboradorId?: string;
+    descripcion?: string;
+    precioUnitario?: number;
+  }) => void;
 }
 
-function useTimer({ currentUser }: UseTimerOptions) {
+function useTimer({ currentUser, onRestoreContext }: UseTimerOptions) {
   const timerPrefix = `afull_timer_${currentUser?.usuario || 'guest'}`;
   const timerKeyRunning = `${timerPrefix}_running`;
   const timerKeyStart = `${timerPrefix}_start`;
@@ -364,6 +372,16 @@ function useTimer({ currentUser }: UseTimerOptions) {
               setPauseStart(null);
               setCurrentPauseType(null);
             }
+
+            if (onRestoreContext) {
+              onRestoreContext({
+                clienteId: serverTimer.clienteId,
+                proyectoId: serverTimer.proyectoId,
+                colaboradorId: serverTimer.colaboradorId,
+                descripcion: serverTimer.descripcion,
+                precioUnitario: serverTimer.precioUnitario,
+              });
+            }
           }
         }
       } catch (error) {
@@ -452,6 +470,7 @@ function useTimer({ currentUser }: UseTimerOptions) {
 
     if (currentUser) {
       try {
+        localStorage.setItem(`${timerPrefix}_context`, JSON.stringify(contextData));
         await authFetchJSON('/api/timer/start', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -464,7 +483,7 @@ function useTimer({ currentUser }: UseTimerOptions) {
         // Timer start failed - state was already updated locally
       }
     }
-  }, [currentUser]);
+  }, [currentUser, timerPrefix]);
 
   const [currentPauseType, setCurrentPauseType] = useState<'descanso' | 'pausa' | null>(null);
 
@@ -616,7 +635,10 @@ function useTimer({ currentUser }: UseTimerOptions) {
     setPauseStart(null);
     setPauseHistory([]);
     setCurrentPauseType(null);
-  }, []);
+    try {
+      localStorage.removeItem(`${timerPrefix}_context`);
+    } catch {}
+  }, [timerPrefix]);
 
   return {
     timerRunning,
@@ -695,6 +717,10 @@ function useInsumos(isOperario: boolean = false) {
     setInsumoLines(prev => prev.map(l => l.id === id ? { ...l, [field]: value } : l));
   }, []);
 
+  const updateInsumoLineCampos = useCallback((id: string, campos: Partial<InsumoLine>) => {
+    setInsumoLines(prev => prev.map(l => l.id === id ? { ...l, ...campos } : l));
+  }, []);
+
   const resetInsumos = useCallback(() => {
     setInsumoLines([{ id: generateId('ins'), descripcion: '', cantidad: 1, precioUnitario: 0 }]);
   }, []);
@@ -717,6 +743,7 @@ function useInsumos(isOperario: boolean = false) {
     addInsumoAgregado,
     removeInsumoLine,
     updateInsumoLine,
+    updateInsumoLineCampos,
     resetInsumos,
     totalInsumos,
     validLines,
@@ -839,17 +866,54 @@ export default function RegistroOperativo({ data, onAddRegistro, onRefresh, curr
     if (selectedClienteId && !data.clientes.find(c => c.id === selectedClienteId)) {
       setSelectedClienteId('');
       setSelectedProyectoId('');
-    } else if (selectedProyectoId) {
+    } else if (selectedProyectoId && data.proyectos.length > 0) {
       const proj = data.proyectos.find(p => p.id === selectedProyectoId);
       if (!proj || proj.activo === false) {
         setSelectedProyectoId('');
       }
     }
-  }, [data.clientes, data.proyectos]);
+  }, [data.clientes, data.proyectos, selectedClienteId, selectedProyectoId]);
 
   // ══════════════════════════════════════════════════════
   //  TIMER & MANO DE OBRA
   // ══════════════════════════════════════════════════════
+
+  const [selectedColaboradorId, setSelectedColaboradorId] = useState(() => {
+    try { return localStorage.getItem(`${ctxPrefix}_colaboradorId`) || ''; } catch { return ''; }
+  });
+  const [moDescripcion, setMoDescripcion] = useState(() => {
+    try { return localStorage.getItem(`${ctxPrefix}_moDescripcion`) || ''; } catch { return ''; }
+  });
+  const [moPrecioUnitario, setMoPrecioUnitario] = useState(() => {
+    try { return localStorage.getItem(`${ctxPrefix}_moPrecioUnitario`) || ''; } catch { return ''; }
+  });
+
+  useEffect(() => {
+    try {
+      if (selectedColaboradorId) localStorage.setItem(`${ctxPrefix}_colaboradorId`, selectedColaboradorId);
+      else localStorage.removeItem(`${ctxPrefix}_colaboradorId`);
+      if (moDescripcion) localStorage.setItem(`${ctxPrefix}_moDescripcion`, moDescripcion);
+      else localStorage.removeItem(`${ctxPrefix}_moDescripcion`);
+      if (moPrecioUnitario) localStorage.setItem(`${ctxPrefix}_moPrecioUnitario`, moPrecioUnitario);
+      else localStorage.removeItem(`${ctxPrefix}_moPrecioUnitario`);
+    } catch {}
+  }, [selectedColaboradorId, moDescripcion, moPrecioUnitario, ctxPrefix]);
+
+  const handleRestoreContext = useCallback((ctx: {
+    clienteId?: string;
+    proyectoId?: string;
+    colaboradorId?: string;
+    descripcion?: string;
+    precioUnitario?: number;
+  }) => {
+    if (ctx.clienteId) setSelectedClienteId(ctx.clienteId);
+    if (ctx.proyectoId) setSelectedProyectoId(ctx.proyectoId);
+    if (ctx.colaboradorId) setSelectedColaboradorId(ctx.colaboradorId);
+    if (ctx.descripcion) setMoDescripcion(ctx.descripcion);
+    if (ctx.precioUnitario !== undefined && ctx.precioUnitario > 0) {
+      setMoPrecioUnitario(String(ctx.precioUnitario));
+    }
+  }, []);
 
   const {
     timerRunning,
@@ -866,11 +930,8 @@ export default function RegistroOperativo({ data, onAddRegistro, onRefresh, curr
     handleResetTimer,
     handlePauseTimer,
     handleResumeTimer,
-  } = useTimer({ currentUser });
+  } = useTimer({ currentUser, onRestoreContext: handleRestoreContext });
 
-  const [selectedColaboradorId, setSelectedColaboradorId] = useState('');
-  const [moDescripcion, setMoDescripcion] = useState('');
-  const [moPrecioUnitario, setMoPrecioUnitario] = useState('');
   const [moSubmitting, setMoSubmitting] = useState(false);
   const [moFeedback, setMoFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
@@ -1085,10 +1146,36 @@ export default function RegistroOperativo({ data, onAddRegistro, onRefresh, curr
     addInsumoAgregado,
     removeInsumoLine,
     updateInsumoLine,
+    updateInsumoLineCampos,
     resetInsumos,
     totalInsumos,
     validLines,
   } = useInsumos(isOperario);
+
+  // Catálogo reactivo de insumos históricos y sugerencias frecuentes (Item 11)
+  const catalogoInsumos = useMemo(() => {
+    const map = new Map<string, { descripcion: string; precioUnitario: number; count: number }>();
+    (data.registros || []).forEach((r) => {
+      if (r.concepto === 'Insumo' && r.descripcion?.trim()) {
+        const desc = r.descripcion.trim();
+        const key = desc.toLowerCase();
+        const existing = map.get(key);
+        if (!existing) {
+          map.set(key, { descripcion: desc, precioUnitario: r.precioUnitario || 0, count: 1 });
+        } else {
+          existing.count += 1;
+          if (r.precioUnitario && r.precioUnitario > 0) {
+            existing.precioUnitario = r.precioUnitario;
+          }
+        }
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => b.count - a.count);
+  }, [data.registros]);
+
+  const insumosFrecuentes = useMemo(() => {
+    return catalogoInsumos.slice(0, 6);
+  }, [catalogoInsumos]);
 
   const [showCalculadoraAdhesivo, setShowCalculadoraAdhesivo] = useState(false);
   const [showCosteoTabs, setShowCosteoTabs] = useState(false);
@@ -2040,6 +2127,48 @@ export default function RegistroOperativo({ data, onAddRegistro, onRefresh, curr
                 )}
               </AnimatePresence>
 
+              {/* Sugerencias de insumos frecuentes (Item 11) */}
+              {insumosFrecuentes.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 p-2 rounded-md bg-[#090a0f]/60 border border-white/5">
+                  <span className="text-[11px] font-mono text-slate-400 mr-1 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-orange-400" /> Insumos frecuentes:
+                  </span>
+                  {insumosFrecuentes.map((item) => (
+                    <button
+                      key={item.descripcion}
+                      type="button"
+                      onClick={() => {
+                        const lastLine = insumoLines[insumoLines.length - 1];
+                        if (lastLine && !lastLine.descripcion.trim()) {
+                          updateInsumoLineCampos(lastLine.id, {
+                            descripcion: item.descripcion,
+                            precioUnitario: item.precioUnitario,
+                          });
+                        } else {
+                          addInsumoLineCustom(item.descripcion, 1, item.precioUnitario);
+                        }
+                      }}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono bg-white/5 hover:bg-orange-500/20 text-slate-300 hover:text-orange-300 border border-white/10 hover:border-orange-500/30 transition-colors cursor-pointer"
+                      title={item.precioUnitario > 0 ? `Precio sugerido: Gs. ${item.precioUnitario.toLocaleString('es-PY')}` : 'Seleccionar insumo'}
+                    >
+                      <span>{item.descripcion}</span>
+                      {!isOperario && item.precioUnitario > 0 && (
+                        <span className="text-[10px] text-orange-400/90 font-semibold">({formatGuaranies(item.precioUnitario)})</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Datalist global para autocompletar insumos */}
+              <datalist id="datalist-insumos-sugeridos">
+                {catalogoInsumos.map((item) => (
+                  <option key={item.descripcion} value={item.descripcion}>
+                    {!isOperario && item.precioUnitario > 0 ? `Gs. ${Math.round(item.precioUnitario).toLocaleString('es-PY')}` : ''}
+                  </option>
+                ))}
+              </datalist>
+
               {/* Tabla de insumos */}
               <div className="space-y-3">
                 <div className="grid grid-cols-12 gap-2 px-2">
@@ -2087,11 +2216,24 @@ export default function RegistroOperativo({ data, onAddRegistro, onRefresh, curr
                             )}
                             <input
                               type="text"
+                              role="textbox"
+                              list="datalist-insumos-sugeridos"
                               value={line.descripcion}
-                              onChange={e => updateInsumoLine(line.id, 'descripcion', e.target.value)}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                const match = catalogoInsumos.find((c) => c.descripcion.toLowerCase() === val.trim().toLowerCase());
+                                if (match && match.precioUnitario > 0 && (!line.precioUnitario || line.precioUnitario === 0)) {
+                                  updateInsumoLineCampos(line.id, {
+                                    descripcion: val,
+                                    precioUnitario: match.precioUnitario,
+                                  });
+                                } else {
+                                  updateInsumoLine(line.id, 'descripcion', val);
+                                }
+                              }}
                               onKeyDown={handleKeyDown}
                               placeholder={`Insumo ${idx + 1}...`}
-                              className="glass-input w-full rounded-lg px-3 py-2.5 text-sm border-0 focus:ring-2 focus:ring-amber-500/30"
+                              className="glass-input w-full rounded-md px-3 py-2.5 text-sm border-0 focus:ring-2 focus:ring-orange-500/30"
                             />
                           </div>
                           {/* Cantidad */}

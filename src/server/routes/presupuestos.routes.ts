@@ -14,7 +14,7 @@
 
 import { Router, Request, Response } from 'express';
 import { prisma } from '../../lib/prisma.ts';
-import { requireAuth, requireAdmin, requireWriteAccess } from '../../../server-auth.ts';
+import { requireAuth, requireAdmin, requireWriteAccess, requireProduccionOrAdmin } from '../../../server-auth.ts';
 import { auditLog, getClientIp } from '../../../server-audit.ts';
 import { logger } from '../config/logger.ts';
 import { ApiResponse } from '../../types.ts';
@@ -97,7 +97,7 @@ presupuestosRouter.get('/', requireAuth, requireAdmin, async (req: Request, res:
 // Listar todas las Ordenes de Trabajo con filtros opcionales
 // DEBE ir antes de GET /:id para que Express no capture "ordenes-trabajo" como id
 // ═══════════════════════════════════════════════════════════════
-presupuestosRouter.get('/ordenes-trabajo', requireAuth, requireAdmin, async (req: Request, res: Response) => {
+presupuestosRouter.get('/ordenes-trabajo', requireAuth, requireProduccionOrAdmin, async (req: Request, res: Response) => {
   try {
     const { estado, clienteId, search } = req.query as { estado?: string; clienteId?: string; search?: string };
 
@@ -124,10 +124,131 @@ presupuestosRouter.get('/ordenes-trabajo', requireAuth, requireAdmin, async (req
 });
 
 // ═══════════════════════════════════════════════════════════════
+// POST /api/admin/presupuestos/ordenes-trabajo/manual
+// Crear una OT de forma manual directamente
+// ═══════════════════════════════════════════════════════════════
+presupuestosRouter.post('/ordenes-trabajo/manual', requireAuth, requireProduccionOrAdmin, requireWriteAccess, async (req: Request, res: Response) => {
+  try {
+    const { clienteId, proyecto, contacto, fechaInicio, fechaTope, detallesTrabajo, comentarioCliente, telefono } = req.body || {};
+    if (!clienteId || !proyecto || !detallesTrabajo) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Cliente, Proyecto y Detalles del trabajo son obligatorios' } } as ApiResponse);
+    }
+    const cliente = await prisma.cliente.findUnique({ where: { id: clienteId } });
+    if (!cliente) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Cliente no encontrado' } } as ApiResponse);
+    }
+
+    const fmtFecha = (d: string | null | undefined): string => {
+      if (!d) return '—';
+      try {
+        const dateObj = new Date(d);
+        const dia = String(dateObj.getDate()).padStart(2, '0');
+        const mes = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const anio = String(dateObj.getFullYear()).slice(-2);
+        return `${dia}/${mes}/${anio}`;
+      } catch {
+        return d;
+      }
+    };
+
+    const lineas: string[] = [
+      `Cliente: ${cliente.nombre}`,
+      `Contacto: ${contacto || '—'}`,
+      `Proyecto: ${proyecto}`,
+      `Fecha de inicio: ${fmtFecha(fechaInicio)}`,
+      `Fecha para culminar: ${fmtFecha(fechaTope)}`,
+      '',
+      'Detalles del trabajo',
+      detallesTrabajo,
+    ];
+    if (comentarioCliente) {
+      lineas.push('', 'Comentarios de Cliente', comentarioCliente);
+    }
+    const mensaje = lineas.join('\n');
+
+    let whatsappUrl = '';
+    if (telefono) {
+      const numeroLimpio = String(telefono).replace(/[^0-9]/g, '');
+      whatsappUrl = `https://wa.me/${numeroLimpio}?text=${encodeURIComponent(mensaje)}`;
+    } else {
+      whatsappUrl = `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
+    }
+
+    const ot = await prisma.$transaction(async (tx) => {
+      const pedId = crypto.randomUUID();
+      await tx.pedido.create({
+        data: {
+          id: pedId,
+          clienteId,
+          sucursalId: 'manual',
+          sucursalNombre: 'Casa Central',
+          descripcion: `OT Manual: ${proyecto}`,
+          cantidad: 1,
+          tipo: 'Trabajo Directo',
+          estado: 'Aprobado',
+          contacto: contacto || null,
+          proyecto,
+          comentarioCliente: comentarioCliente || null,
+        },
+      });
+
+      const pId = crypto.randomUUID();
+      await tx.presupuesto.create({
+        data: {
+          id: pId,
+          pedidoId: pedId,
+          clienteId,
+          clienteNombre: cliente.nombre,
+          proyecto,
+          contacto: contacto || null,
+          fechaInicio: fechaInicio ? new Date(fechaInicio) : null,
+          fechaTope: fechaTope ? new Date(fechaTope) : null,
+          estado: 'Aprobado',
+          total: 0,
+          markup: 0,
+          comentarioCliente: comentarioCliente || null,
+        },
+      });
+
+      return await tx.ordenTrabajo.create({
+        data: {
+          id: crypto.randomUUID(),
+          presupuestoId: pId,
+          clienteId,
+          clienteNombre: cliente.nombre,
+          proyecto,
+          contacto: contacto || null,
+          fechaInicio: fechaInicio ? new Date(fechaInicio) : null,
+          fechaTope: fechaTope ? new Date(fechaTope) : null,
+          detallesTrabajo,
+          comentarioCliente: comentarioCliente || null,
+          estado: 'Generada',
+          mensajeWhatsapp: mensaje,
+        }
+      });
+    });
+
+    auditLog({
+      usuario: req.user!.usuario,
+      accion: 'create_manual_ot',
+      recurso: `/api/admin/presupuestos/ordenes-trabajo/${ot.id}`,
+      resultado: 'success',
+      ip: getClientIp(req),
+      detalle: `OT manual ${ot.id} creada para cliente ${cliente.nombre}`,
+    });
+
+    res.json({ success: true, data: { ...ot, whatsappUrl }, message: 'Orden de Trabajo creada exitosamente' } as ApiResponse);
+  } catch (error: any) {
+    logger.error('[PRESUPUESTOS] Error creating manual OT:', error);
+    res.status(500).json({ success: false, error: { code: 'CREATE_ERROR', message: 'Error al crear Orden de Trabajo: ' + error.message } } as ApiResponse);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
 // GET /api/admin/presupuestos/ordenes-trabajo/:id
 // Obtener una OT específica por id
 // ═══════════════════════════════════════════════════════════════
-presupuestosRouter.get('/ordenes-trabajo/:id', requireAuth, requireAdmin, async (req: Request, res: Response) => {
+presupuestosRouter.get('/ordenes-trabajo/:id', requireAuth, requireProduccionOrAdmin, async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
     const ot = await prisma.ordenTrabajo.findUnique({ where: { id } });
@@ -1073,7 +1194,7 @@ presupuestosRouter.post('/:id/orden-trabajo', requireAuth, requireAdmin, require
 // PUT /api/admin/ordenes-trabajo/:id
 // Editar una OT existente (detalles, comentarios, contacto, fechas, estado)
 // ═══════════════════════════════════════════════════════════════
-presupuestosRouter.put('/ordenes-trabajo/:id', requireAuth, requireAdmin, requireWriteAccess, async (req: Request, res: Response) => {
+presupuestosRouter.put('/ordenes-trabajo/:id', requireAuth, requireProduccionOrAdmin, requireWriteAccess, async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
     const existing = await prisma.ordenTrabajo.findUnique({ where: { id } });
@@ -1083,7 +1204,6 @@ presupuestosRouter.put('/ordenes-trabajo/:id', requireAuth, requireAdmin, requir
 
     // Campos editables
     const { detallesTrabajo, comentarioCliente, contacto, fechaInicio, fechaTope, estado } = req.body || {};
-
     const data: any = {};
     if (detallesTrabajo !== undefined) data.detallesTrabajo = detallesTrabajo;
     if (comentarioCliente !== undefined) data.comentarioCliente = comentarioCliente?.trim() || null;
@@ -1151,7 +1271,7 @@ presupuestosRouter.put('/ordenes-trabajo/:id', requireAuth, requireAdmin, requir
 // DELETE /api/admin/ordenes-trabajo/:id
 // Eliminar una OT existente
 // ═══════════════════════════════════════════════════════════════
-presupuestosRouter.delete('/ordenes-trabajo/:id', requireAuth, requireAdmin, requireWriteAccess, async (req: Request, res: Response) => {
+presupuestosRouter.delete('/ordenes-trabajo/:id', requireAuth, requireProduccionOrAdmin, requireWriteAccess, async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
     const existing = await prisma.ordenTrabajo.findUnique({ where: { id } });
@@ -1181,7 +1301,7 @@ presupuestosRouter.delete('/ordenes-trabajo/:id', requireAuth, requireAdmin, req
 // POST /api/admin/ordenes-trabajo/:id/marcar-enviado
 // Marcar una OT como enviada por WhatsApp
 // ═══════════════════════════════════════════════════════════════
-presupuestosRouter.post('/ordenes-trabajo/:id/marcar-enviado', requireAuth, requireAdmin, requireWriteAccess, async (req: Request, res: Response) => {
+presupuestosRouter.post('/ordenes-trabajo/:id/marcar-enviado', requireAuth, requireProduccionOrAdmin, requireWriteAccess, async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
     const ot = await prisma.ordenTrabajo.findUnique({ where: { id } });

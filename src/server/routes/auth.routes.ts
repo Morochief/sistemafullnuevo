@@ -71,7 +71,19 @@ authRouter.post('/auth/logout', (req: Request, res: Response) => {
 
 authRouter.get('/auth/me', requireAuth, (req: Request, res: Response) => {
   const user = (req as any).user as JWTPayload;
-  return res.json({ success: true, data: { user: { nombre: user.nombre, rol: user.rol, usuario: user.usuario, colaboradorId: user.colaboradorId || undefined } } });
+  return res.json({
+    success: true,
+    data: {
+      user: {
+        nombre: user.nombre,
+        rol: user.rol,
+        usuario: user.usuario,
+        colaboradorId: user.colaboradorId || undefined,
+        cargo: user.cargo || undefined,
+        departamento: user.departamento || undefined,
+      },
+    },
+  });
 });
 
 // GET /auth/users - Listar todos los usuarios (admin) para asignar a hojas de ruta

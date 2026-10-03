@@ -173,6 +173,7 @@ app.use('/api/vehiculo', vehiculoRouter);
 app.use('/api/admin/cartera', carteraRouter);
 app.use('/api', importRouter);
 app.use('/api/admin/presupuestos', presupuestosRouter);
+app.use('/api/admin/ordenes-trabajo', presupuestosRouter);
 app.use('/api/admin/hojas-ruta', hojasRutaRouter);
 app.use('/api/operario', operarioRouter);
 app.use('/api', dataRouter);

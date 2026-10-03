@@ -271,6 +271,8 @@ export interface UserCacheEntry {
   nombre: string;
   rol: 'Admin' | 'Operario' | 'Visor';
   colaboradorId: string | null;
+  cargo?: string | null;
+  departamento?: string | null;
   checkedAt: number;
 }
 export const userActiveCache = new Map<string, UserCacheEntry>();
@@ -316,7 +318,9 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
         activo: cached.activo,
         nombre: cached.nombre,
         rol: cached.rol,
-        colaboradorId: cached.colaboradorId
+        colaboradorId: cached.colaboradorId,
+        cargo: cached.cargo,
+        departamento: cached.departamento,
       };
     } else {
       let userFromDb = null;
@@ -333,11 +337,25 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       }
       
       if (userFromDb) {
+        let cargo: string | null = null;
+        let departamento: string | null = null;
+        if (userFromDb.colaboradorId) {
+          try {
+            const colab = await prisma.colaborador.findUnique({
+              where: { id: userFromDb.colaboradorId },
+              select: { cargo: true, departamento: true }
+            });
+            cargo = colab?.cargo || null;
+            departamento = colab?.departamento || null;
+          } catch {}
+        }
         userDetails = {
           activo: userFromDb.activo,
           nombre: userFromDb.nombre,
           rol: mapDbRolToUi(userFromDb.rol),
-          colaboradorId: userFromDb.colaboradorId
+          colaboradorId: userFromDb.colaboradorId,
+          cargo,
+          departamento,
         };
       } else {
         // Si fue por error de DB o usuario no encontrado en este momento,
@@ -346,7 +364,9 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
           activo: true,
           nombre: payload.nombre || '',
           rol: (payload.rol as 'Admin' | 'Operario' | 'Visor') || 'Operario',
-          colaboradorId: payload.colaboradorId || null
+          colaboradorId: payload.colaboradorId || null,
+          cargo: payload.cargo || null,
+          departamento: payload.departamento || null,
         };
       }
       
@@ -360,6 +380,8 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     payload.nombre = userDetails.nombre;
     payload.rol = userDetails.rol;
     payload.colaboradorId = userDetails.colaboradorId;
+    payload.cargo = userDetails.cargo;
+    payload.departamento = userDetails.departamento;
 
     if (!userDetails.activo) {
       logger.info('[AUTH] REJECTED: User is inactive or deleted:', payload.usuario);
@@ -413,6 +435,73 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction) {
   
   logger.info('[ADMIN CHECK] PASSED: User is admin');
   next();
+}
+
+/**
+ * Helper to check if a user is Jefe de Producción (Item 14)
+ */
+export async function isUserJefeProduccion(user?: JWTPayload | null): Promise<boolean> {
+  if (!user) return false;
+  if (user.rol === 'Admin') return true;
+  const username = user.usuario?.toLowerCase() || '';
+  if (username === '2908320') return true; // Gerardo Araujo
+  const cargo = (user.cargo || '').toLowerCase();
+  if (cargo.includes('jefe de produccion') || cargo.includes('produccion')) return true;
+  return false;
+}
+
+/**
+ * Helper to check if a user is Diseñador (Nachi / Diseño) (Item 13)
+ */
+export async function isUserDiseno(user?: JWTPayload | null): Promise<boolean> {
+  if (!user) return false;
+  if (user.rol === 'Admin') return true;
+  const username = user.usuario?.toLowerCase() || '';
+  if (username === '4958075') return true; // Nahiat Araujo
+  const cargo = (user.cargo || '').toLowerCase();
+  const dep = (user.departamento || '').toLowerCase();
+  if (cargo.includes('diseñ') || dep.includes('diseñ')) return true;
+  return false;
+}
+
+/**
+ * Express Middleware: Require Jefe de Producción or Admin Role (Item 14)
+ */
+export async function requireProduccionOrAdmin(req: Request, res: Response, next: NextFunction) {
+  const user = (req as any).user as JWTPayload | undefined;
+  if (!user) {
+    return res.status(401).json({
+      success: false,
+      error: { code: 'UNAUTHORIZED', message: 'Token de autenticación requerido' },
+    });
+  }
+  if (await isUserJefeProduccion(user)) {
+    return next();
+  }
+  return res.status(403).json({
+    success: false,
+    error: { code: 'FORBIDDEN', message: 'Acceso denegado: se requiere rol de Jefe de Producción o Administrador' },
+  });
+}
+
+/**
+ * Express Middleware: Require Diseño, Jefe de Producción or Admin Role (Items 13, 14)
+ */
+export async function requireDisenoOrProduccionOrAdmin(req: Request, res: Response, next: NextFunction) {
+  const user = (req as any).user as JWTPayload | undefined;
+  if (!user) {
+    return res.status(401).json({
+      success: false,
+      error: { code: 'UNAUTHORIZED', message: 'Token de autenticación requerido' },
+    });
+  }
+  if ((await isUserJefeProduccion(user)) || (await isUserDiseno(user))) {
+    return next();
+  }
+  return res.status(403).json({
+    success: false,
+    error: { code: 'FORBIDDEN', message: 'Acceso denegado: se requiere rol de Diseño, Producción o Administrador' },
+  });
 }
 
 /**

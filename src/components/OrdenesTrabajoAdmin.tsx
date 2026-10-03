@@ -12,7 +12,8 @@ import {
   CheckCircle2, 
   Clock, 
   Calendar,
-  AlertTriangle
+  AlertTriangle,
+  Plus
 } from 'lucide-react';
 import { authFetchJSON } from '../authFetch.ts';
 import { OrdenTrabajo } from '../types.ts';
@@ -65,6 +66,68 @@ export default function OrdenesTrabajoAdmin() {
     whatsappUrl: string;
     enviado: boolean;
   } | null>(null);
+
+  // Modal Nueva OT Manual
+  const [showManualModal, setShowManualModal] = useState(false);
+  const [clientesList, setClientesList] = useState<{ id: string; nombre: string }[]>([]);
+  const [manualForm, setManualForm] = useState({
+    clienteId: '',
+    proyecto: '',
+    contacto: '',
+    fechaInicio: new Date().toISOString().slice(0, 10),
+    fechaTope: '',
+    detallesTrabajo: '',
+    comentarioCliente: '',
+    telefono: '',
+  });
+  const [manualSaving, setManualSaving] = useState(false);
+
+  useEffect(() => {
+    authFetchJSON<{ success: boolean; data: any[] }>('/api/clientes')
+      .then(res => {
+        if (res.success && res.data) setClientesList(res.data);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleCrearOTManual = async () => {
+    if (!manualForm.clienteId || !manualForm.proyecto.trim() || !manualForm.detallesTrabajo.trim()) {
+      showToast('Completá Cliente, Proyecto y Detalles del trabajo', 'error');
+      return;
+    }
+    setManualSaving(true);
+    try {
+      const res = await authFetchJSON<{ success: boolean; data: any; error?: any }>(
+        '/api/admin/ordenes-trabajo/manual',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(manualForm),
+        }
+      );
+      if (res.success) {
+        showToast('Orden de Trabajo manual creada con éxito', 'success');
+        setShowManualModal(false);
+        setManualForm({
+          clienteId: '',
+          proyecto: '',
+          contacto: '',
+          fechaInicio: new Date().toISOString().slice(0, 10),
+          fechaTope: '',
+          detallesTrabajo: '',
+          comentarioCliente: '',
+          telefono: '',
+        });
+        await loadOrdenesTrabajo();
+      } else {
+        showToast(res.error?.message || 'Error al crear Orden de Trabajo', 'error');
+      }
+    } catch (e: any) {
+      showToast(e.message || 'Error al conectar con el servidor', 'error');
+    } finally {
+      setManualSaving(false);
+    }
+  };
 
   const loadOrdenesTrabajo = useCallback(async () => {
     setLoading(true);
@@ -199,14 +262,36 @@ export default function OrdenesTrabajoAdmin() {
           </p>
         </div>
 
-        <button
-          onClick={loadOrdenesTrabajo}
-          disabled={loading}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-md bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-medium border border-white/10 transition-colors cursor-pointer"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          <span>Actualizar</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              setManualForm({
+                clienteId: '',
+                proyecto: '',
+                contacto: '',
+                fechaInicio: new Date().toISOString().slice(0, 10),
+                fechaTope: '',
+                detallesTrabajo: '',
+                comentarioCliente: '',
+                telefono: '',
+              });
+              setShowManualModal(true);
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-md bg-orange-600 hover:bg-orange-700 text-white text-xs font-semibold shadow-sm transition-colors cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Nueva OT Manual</span>
+          </button>
+
+          <button
+            onClick={loadOrdenesTrabajo}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-md bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-medium border border-white/10 transition-colors cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <span>Actualizar</span>
+          </button>
+        </div>
       </div>
 
       {/* Barra de Filtros */}
@@ -550,6 +635,148 @@ export default function OrdenesTrabajoAdmin() {
                   <MessageSquare className="w-4 h-4" />
                   Abrir WhatsApp Web
                 </a>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Nueva OT Manual */}
+      <AnimatePresence>
+        {showManualModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4" onClick={() => setShowManualModal(false)}>
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-md border border-white/10 bg-[#111318] p-6 shadow-2xl space-y-4"
+            >
+              <div className="flex items-start justify-between border-b border-white/10 pb-4">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-md bg-orange-500/10 border border-orange-500/20 text-orange-400">
+                    <ClipboardList className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white">Nueva Orden de Trabajo Manual</h3>
+                    <p className="text-xs text-slate-400">Cargar una OT directa para el taller sin presupuesto previo</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowManualModal(false)} className="p-1 rounded-md text-slate-400 hover:text-white cursor-pointer">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-3.5">
+                <div>
+                  <label className="block text-xs font-semibold text-orange-300 mb-1">Cliente *</label>
+                  <select
+                    value={manualForm.clienteId}
+                    onChange={(e) => setManualForm(f => ({ ...f, clienteId: e.target.value }))}
+                    className="w-full rounded-md border border-white/10 bg-[#090a0f] px-3 py-2 text-xs text-slate-200 outline-none focus:border-orange-500/60"
+                  >
+                    <option value="">Seleccioná un cliente...</option>
+                    {clientesList.map(c => (
+                      <option key={c.id} value={c.id} className="bg-[#111318]">{c.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-orange-300 mb-1">Proyecto / Obra *</label>
+                  <input
+                    type="text"
+                    placeholder="Ej: Letrero Corp, Fachada Alucobond, etc."
+                    value={manualForm.proyecto}
+                    onChange={(e) => setManualForm(f => ({ ...f, proyecto: e.target.value }))}
+                    className="w-full rounded-md border border-white/10 bg-[#090a0f] px-3 py-2 text-xs text-slate-200 outline-none focus:border-orange-500/60"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-orange-300 mb-1">Contacto</label>
+                    <input
+                      type="text"
+                      placeholder="Nombre del contacto"
+                      value={manualForm.contacto}
+                      onChange={(e) => setManualForm(f => ({ ...f, contacto: e.target.value }))}
+                      className="w-full rounded-md border border-white/10 bg-[#090a0f] px-3 py-2 text-xs text-slate-200 outline-none focus:border-orange-500/60"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-orange-300 mb-1">Teléfono (WhatsApp)</label>
+                    <input
+                      type="text"
+                      placeholder="Ej: 595981234567"
+                      value={manualForm.telefono}
+                      onChange={(e) => setManualForm(f => ({ ...f, telefono: e.target.value }))}
+                      className="w-full rounded-md border border-white/10 bg-[#090a0f] px-3 py-2 text-xs text-slate-200 outline-none focus:border-orange-500/60"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-orange-300 mb-1">Fecha de Inicio</label>
+                    <input
+                      type="date"
+                      value={manualForm.fechaInicio}
+                      onChange={(e) => setManualForm(f => ({ ...f, fechaInicio: e.target.value }))}
+                      className="w-full rounded-md border border-white/10 bg-[#090a0f] px-3 py-2 text-xs text-slate-200 outline-none focus:border-orange-500/60"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-orange-300 mb-1">Fecha para Culminar</label>
+                    <input
+                      type="date"
+                      value={manualForm.fechaTope}
+                      onChange={(e) => setManualForm(f => ({ ...f, fechaTope: e.target.value }))}
+                      className="w-full rounded-md border border-white/10 bg-[#090a0f] px-3 py-2 text-xs text-slate-200 outline-none focus:border-orange-500/60"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-orange-300 mb-1">Detalles del Trabajo *</label>
+                  <textarea
+                    rows={4}
+                    placeholder="Instrucciones del trabajo, medidas, materiales a utilizar..."
+                    value={manualForm.detallesTrabajo}
+                    onChange={(e) => setManualForm(f => ({ ...f, detallesTrabajo: e.target.value }))}
+                    className="w-full rounded-md border border-white/10 bg-[#090a0f] px-3 py-2 text-xs text-slate-200 outline-none focus:border-orange-500/60"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-orange-300 mb-1">Comentarios del Cliente</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Instrucciones o requerimientos específicos del cliente..."
+                    value={manualForm.comentarioCliente}
+                    onChange={(e) => setManualForm(f => ({ ...f, comentarioCliente: e.target.value }))}
+                    className="w-full rounded-md border border-white/10 bg-[#090a0f] px-3 py-2 text-xs text-slate-200 outline-none focus:border-orange-500/60"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-4 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setShowManualModal(false)}
+                  disabled={manualSaving}
+                  className="px-4 py-2 rounded-md bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-medium border border-white/10 transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCrearOTManual}
+                  disabled={manualSaving}
+                  className="px-4 py-2 rounded-md bg-orange-600 hover:bg-orange-700 text-white text-xs font-semibold shadow-sm transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {manualSaving ? 'Creando...' : 'Crear Orden de Trabajo'}
+                </button>
               </div>
             </motion.div>
           </div>

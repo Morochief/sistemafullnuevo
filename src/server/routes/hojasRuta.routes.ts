@@ -15,7 +15,7 @@
 
 import { Router, Request, Response } from 'express';
 import { prisma } from '../../lib/prisma.ts';
-import { requireAuth, requireAdmin, requireWriteAccess } from '../../../server-auth.ts';
+import { requireAuth, requireAdmin, requireWriteAccess, requireProduccionOrAdmin } from '../../../server-auth.ts';
 import { auditLog, getClientIp } from '../../../server-audit.ts';
 import { logger } from '../config/logger.ts';
 import { ApiResponse } from '../../types.ts';
@@ -27,7 +27,7 @@ export const hojasRutaRouter = Router();
 // ADMIN: Listar hojas de ruta con filtros + paginación + ordenamiento
 // GET /api/admin/hojas-ruta?estado=&clienteId=&operarioId=&search=&page=&limit=&orderBy=&orderDir=
 // ═══════════════════════════════════════════════════════════════
-hojasRutaRouter.get('/', requireAuth, requireAdmin, async (req: Request, res: Response) => {
+hojasRutaRouter.get('/', requireAuth, requireProduccionOrAdmin, async (req: Request, res: Response) => {
   try {
     const {
       estado,
@@ -105,7 +105,7 @@ hojasRutaRouter.get('/', requireAuth, requireAdmin, async (req: Request, res: Re
 // ADMIN: Obtener una hoja de ruta con todas sus tareas
 // GET /api/admin/hojas-ruta/:id
 // ═══════════════════════════════════════════════════════════════
-hojasRutaRouter.get('/:id', requireAuth, requireAdmin, async (req: Request, res: Response) => {
+hojasRutaRouter.get('/:id', requireAuth, requireProduccionOrAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const hoja = await prisma.hojaRuta.findUnique({
@@ -136,7 +136,7 @@ hojasRutaRouter.get('/:id', requireAuth, requireAdmin, async (req: Request, res:
 // Body: { ordenTrabajoId }
 // Autogenera tareas desde los items del presupuesto (mixto), el admin edita después
 // ═══════════════════════════════════════════════════════════════
-hojasRutaRouter.post('/', requireAuth, requireAdmin, requireWriteAccess, async (req: Request, res: Response) => {
+hojasRutaRouter.post('/', requireAuth, requireProduccionOrAdmin, requireWriteAccess, async (req: Request, res: Response) => {
   try {
     const { ordenTrabajoId } = req.body;
     if (!ordenTrabajoId) {
@@ -246,7 +246,7 @@ hojasRutaRouter.post('/', requireAuth, requireAdmin, requireWriteAccess, async (
 // PUT /api/admin/hojas-ruta/:id
 // Body: { estado?, notas?, tareas?: [{ id?, descripcion, colaboradorId, ... }] }
 // ═════════════════════════════════════════════════════ que se conservan══════
-hojasRutaRouter.put('/:id', requireAuth, requireAdmin, requireWriteAccess, async (req: Request, res: Response) => {
+hojasRutaRouter.put('/:id', requireAuth, requireProduccionOrAdmin, requireWriteAccess, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { estado, notas, tareas } = req.body;
@@ -330,7 +330,7 @@ hojasRutaRouter.put('/:id', requireAuth, requireAdmin, requireWriteAccess, async
 // ADMIN: Eliminar hoja de ruta
 // DELETE /api/admin/hojas-ruta/:id
 // ═══════════════════════════════════════════════════════════════
-hojasRutaRouter.delete('/:id', requireAuth, requireAdmin, requireWriteAccess, async (req: Request, res: Response) => {
+hojasRutaRouter.delete('/:id', requireAuth, requireProduccionOrAdmin, requireWriteAccess, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const hoja = await prisma.hojaRuta.findUnique({ where: { id } });
@@ -363,7 +363,7 @@ hojasRutaRouter.delete('/:id', requireAuth, requireAdmin, requireWriteAccess, as
 //   - Sin operarioId: genera UN mensaje con todas las tareas agrupadas por operario
 //   - Con operarioId: genera el mensaje solo de ese operario
 // ═══════════════════════════════════════════════════════════════
-hojasRutaRouter.post('/:id/whatsapp', requireAuth, requireAdmin, requireWriteAccess, async (req: Request, res: Response) => {
+hojasRutaRouter.post('/:id/whatsapp', requireAuth, requireProduccionOrAdmin, requireWriteAccess, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { operarioId, telefono } = req.body || {};
@@ -471,7 +471,7 @@ hojasRutaRouter.post('/:id/whatsapp', requireAuth, requireAdmin, requireWriteAcc
 // ADMIN: Listar colaboradores disponibles para asignar (dropdown)
 // GET /api/admin/hojas-ruta/meta/colaboradores
 // ═══════════════════════════════════════════════════════════════
-hojasRutaRouter.get('/meta/colaboradores', requireAuth, requireAdmin, async (req: Request, res: Response) => {
+hojasRutaRouter.get('/meta/colaboradores', requireAuth, requireProduccionOrAdmin, async (req: Request, res: Response) => {
   try {
     const colaboradores = await prisma.colaborador.findMany({
       where: {},

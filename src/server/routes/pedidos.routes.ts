@@ -4,7 +4,7 @@
  */
 import { Router, Request, Response } from 'express';
 import { prisma } from '../../lib/prisma.ts';
-import { requireAuth, requireAdmin } from '../../../server-auth.ts';
+import { requireAuth, requireAdmin, requireDisenoOrProduccionOrAdmin } from '../../../server-auth.ts';
 import { auditLog, getClientIp } from '../../../server-audit.ts';
 import { logger } from '../config/logger.ts';
 import { ApiResponse } from '../../types.ts';
@@ -53,7 +53,7 @@ export async function guardarFotoEntregaStorage(pedidoId: string, fotoBase64: st
   return `/uploads/entregas/${pedidoId}/${filename}`;
 }
 
-pedidosRouter.get('/', requireAuth, requireAdmin, async (req: Request, res: Response) => {
+pedidosRouter.get('/', requireAuth, requireDisenoOrProduccionOrAdmin, async (req: Request, res: Response) => {
   try {
     const { estado, clienteId } = req.query as { estado?: string; clienteId?: string };
     const where: any = { archivado: false };
@@ -111,7 +111,7 @@ pedidosRouter.get('/', requireAuth, requireAdmin, async (req: Request, res: Resp
   }
 });
 
-pedidosRouter.put('/:id', requireAuth, requireAdmin, async (req: Request, res: Response) => {
+pedidosRouter.put('/:id', requireAuth, requireDisenoOrProduccionOrAdmin, async (req: Request, res: Response) => {
   const { id } = req.params;
   const {
     sucursalId,
@@ -218,7 +218,7 @@ pedidosRouter.put('/:id', requireAuth, requireAdmin, async (req: Request, res: R
 });
 
 // POST /api/admin/pedidos/:id/fotos-entrega — Subir fotos de remisión o entrega
-pedidosRouter.post('/:id/fotos-entrega', requireAuth, requireAdmin, async (req: Request, res: Response) => {
+pedidosRouter.post('/:id/fotos-entrega', requireAuth, requireDisenoOrProduccionOrAdmin, async (req: Request, res: Response) => {
   const { id } = req.params;
   const { tipo, fotoBase64, receptorNombre, fechaEntrega } = req.body || {};
 

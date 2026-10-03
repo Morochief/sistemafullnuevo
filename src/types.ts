@@ -314,6 +314,8 @@ export interface JWTPayload {
   nombre: string;
   rol: string;
   colaboradorId?: string; // SECURITY Fix #16: Carried in token for exact-match authorization
+  cargo?: string | null;
+  departamento?: string | null;
   iat?: number;
   exp?: number;
 }

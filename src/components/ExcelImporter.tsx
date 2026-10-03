@@ -15,9 +15,88 @@ import {
   AlertTriangle,
   RefreshCw
 } from 'lucide-react';
+import * as xlsx from 'xlsx';
 import { DatabaseState, Cliente, Proyecto, Colaborador, RegistroItem } from '../types.ts';
 import { authFetch, authFetchJSON } from '../authFetch.ts'; // SECURITY Phase 2 Fix #5: No getSession
 import { useNotif } from '../context/NotifContext.tsx';
+
+function normalizeHeader(str: string): string {
+  return (str || '')
+    .toString()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
+}
+
+function getRowValue(row: any, aliases: string[]): any {
+  const normAliases = aliases.map(normalizeHeader);
+  for (const [key, val] of Object.entries(row)) {
+    const normKey = normalizeHeader(key);
+    if (normAliases.some(alias => normKey === alias || normKey.includes(alias) || alias.includes(normKey))) {
+      if (val !== undefined && val !== null && String(val).trim() !== '') {
+        return val;
+      }
+    }
+  }
+  return '';
+}
+
+function normalizeEntityName(str: string): string {
+  return (str || '')
+    .toString()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\b(s\.?a\.?|s\.?r\.?l\.?|s\.?a\.?c\.?i\.?|e\.?i\.?r\.?l\.?|s\.?a\.?s\.?)\b/gi, '')
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
+}
+
+function parseExcelDate(excelDate: any): string {
+  if (!excelDate) return new Date().toISOString().substring(0, 10);
+  if (typeof excelDate === 'number') {
+    const date = new Date((excelDate - (excelDate > 60 ? 2 : 1)) * 24 * 60 * 60 * 1000 + new Date('1900-01-01').getTime());
+    return date.toISOString().substring(0, 10);
+  }
+  try {
+    const parsedStr = String(excelDate).trim();
+    if (parsedStr.includes('/') || parsedStr.includes('-')) {
+      const parts = parsedStr.split(/[-/]/);
+      if (parts.length === 3) {
+        if (parts[0].length === 4) {
+          return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+        } else if (parts[2].length === 4) {
+          return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        }
+      }
+    }
+    const d = new Date(excelDate);
+    if (!isNaN(d.getTime())) {
+      return d.toISOString().substring(0, 10);
+    }
+  } catch (e) {}
+  return new Date().toISOString().substring(0, 10);
+}
+
+function formatExcelTime(val: any): string {
+  if (val === undefined || val === null || val === '') return '';
+  const valStr = String(val).trim();
+  if (valStr.includes(':')) {
+    return valStr.substring(0, 5);
+  }
+  const num = parseFloat(valStr);
+  if (!isNaN(num) && num >= 0 && num < 1) {
+    const totalMinutes = Math.round(num * 24 * 60);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    const hh = String(hours).padStart(2, '0');
+    const mm = String(minutes).padStart(2, '0');
+    return `${hh}:${mm}`;
+  }
+  return valStr;
+}
 
 interface ExcelImporterProps {
   currentDb: DatabaseState;
@@ -84,33 +163,153 @@ export default function ExcelImporter({ currentDb, onImportConfirmed, onCancel, 
     }
   };
 
-  // Upload and Parse
+  // Upload and Parse client-side (no HTTP 413, no upload size limits)
   const handleUploadAndParse = async () => {
     if (!file) return;
 
     setLoading(true);
     setApiError(null);
-    
-    const formData = new FormData();
-    formData.append('file', file);
 
     try {
-      // SECURITY Phase 2 Fix #5: Use cookie-based auth instead of Authorization header
-      const response = await authFetch('/api/import-excel', {
-        method: 'POST',
-        body: formData,
-        // Don't set Content-Type - browser will set it with boundary for FormData
-      });
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = xlsx.read(arrayBuffer, { type: 'array' });
+      if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+        throw new Error('El archivo no contiene hojas de cálculo.');
+      }
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const rawRows = xlsx.utils.sheet_to_json<any>(worksheet);
 
-      if (!response.ok) {
-        const errJson = await response.json();
-        throw new Error(errJson.error?.message || errJson.error || 'Error al procesar el archivo Excel');
+      if (rawRows.length === 0) {
+        throw new Error('La primera hoja del archivo está vacía.');
       }
 
-      const result = await response.json();
-      setImportResult(result);
+      const tempClientes: Cliente[] = [...currentDb.clientes];
+      const tempProyectos: Proyecto[] = [...currentDb.proyectos];
+      const tempColaboradores: Colaborador[] = [...currentDb.colaboradores];
+
+      const initialClientesCount = tempClientes.length;
+      const initialProyectosCount = tempProyectos.length;
+      const initialColaboradoresCount = tempColaboradores.length;
+
+      const importedItems: any[] = [];
+
+      for (const row of rawRows) {
+        const clientName = String(getRowValue(row, ['Cliente', 'Razon Social', 'Razón Social', 'Empresa', 'Cliente/Empresa', 'Nombre Cliente', 'Cuenta'])).trim();
+        const projectName = String(getRowValue(row, ['Proyecto', 'Proyectos', 'Obra', 'OT', 'Orden', 'Nombre Proyecto'])).trim();
+        const fechaRaw = getRowValue(row, ['Fecha', 'Fec', 'Dia', 'Día', 'Date']);
+        const conceptoRaw = String(getRowValue(row, ['Concepto', 'Tipo', 'Rubro', 'Categoria', 'Categoría'])).trim().toUpperCase();
+        const concepto: 'MO' | 'Insumo' = conceptoRaw === 'MO' || conceptoRaw === 'MANO DE OBRA' ? 'MO' : 'Insumo';
+        const descripcion = String(getRowValue(row, ['Descripcion', 'Descripción', 'Detalle', 'Tarea', 'Item', 'Observacion', 'Observación'])).trim();
+        const hsInicio = getRowValue(row, ['Hs Inicio', 'Hora Inicio', 'Inicio', 'Desde', 'Entrada', 'Hs. Inicio']);
+        const hsFin = getRowValue(row, ['Hs Fin', 'Hora Fin', 'Fin', 'Hasta', 'Salida', 'Hs. Fin']);
+        const cantidad = parseFloat(getRowValue(row, ['Cantidad', 'Cant', 'Cant.', 'Minutos', 'Horas', 'Hs', 'QTY'])) || 0;
+        const precioUnitario = parseFloat(getRowValue(row, ['Precio Unitario', 'Tarifa', 'Precio', 'Costo Unitario', 'P. Unitario', 'Tarifa/Hora', 'Unitario'])) || 0;
+        const computedTotal = parseFloat(getRowValue(row, ['Total', 'Importe', 'Monto', 'Subtotal'])) || 0;
+
+        let hsTotal = 0;
+        if (concepto === 'MO' && cantidad > 0) hsTotal = parseFloat((cantidad / 60).toFixed(2));
+
+        if (!clientName && !projectName && !descripcion) continue;
+        if (clientName.toLowerCase() === 'cliente' || projectName.toLowerCase() === 'proyecto') continue;
+
+        let targetClient = tempClientes.find(c => {
+          const nc = normalizeEntityName(c.nombre);
+          const ni = normalizeEntityName(clientName);
+          if (!nc || !ni) return false;
+          return nc === ni || (ni.length >= 4 && (nc.includes(ni) || ni.includes(nc)));
+        });
+
+        if (!targetClient && clientName) {
+          targetClient = {
+            id: `cli_${Math.random().toString(36).substring(2, 9)}`,
+            nombre: clientName,
+            codigo: clientName.substring(0, 4).toUpperCase().replace(/[^A-Z0-9]/g, 'C'),
+            fechaCreacion: new Date().toISOString().substring(0, 10)
+          };
+          tempClientes.push(targetClient);
+        }
+
+        let targetProject: Proyecto | undefined = undefined;
+        if (targetClient && projectName) {
+          targetProject = tempProyectos.find(p => {
+            if (p.clienteId !== targetClient!.id) return false;
+            const np = normalizeEntityName(p.nombre);
+            const nip = normalizeEntityName(projectName);
+            return np === nip || (nip.length >= 4 && (np.includes(nip) || nip.includes(np)));
+          });
+
+          if (!targetProject) {
+            targetProject = {
+              id: `pro_${Math.random().toString(36).substring(2, 9)}`,
+              clienteId: targetClient.id,
+              nombre: projectName,
+              estado: 'En Proceso' as const,
+              fechaInicio: parseExcelDate(fechaRaw)
+            };
+            tempProyectos.push(targetProject);
+          }
+        }
+
+        let targetColaborador: Colaborador | undefined = undefined;
+        if (concepto === 'MO' && descripcion) {
+          const descWords = descripcion.toLowerCase().split(/\s+/);
+          targetColaborador = tempColaboradores.find(col => {
+            const names = col.nombre.toLowerCase().split(/\s+/);
+            return names.length > 0 && descWords.includes(names[0]);
+          });
+          if (!targetColaborador) {
+            const prospectiveWorkerName = descripcion.split(' ')[0] || 'Colaborador';
+            const normalizedName = prospectiveWorkerName.charAt(0).toUpperCase() + prospectiveWorkerName.slice(1).toLowerCase();
+            targetColaborador = tempColaboradores.find(c => c.nombre.startsWith(normalizedName));
+            if (!targetColaborador) {
+              targetColaborador = {
+                id: `col_${Math.random().toString(36).substring(2, 9)}`,
+                nombre: normalizedName + ' ' + (descripcion.split(' ')[1] || ''),
+                tarifaSugerida: precioUnitario || 350,
+                rol: 'Operario Externo'
+              };
+              tempColaboradores.push(targetColaborador);
+            }
+          }
+        }
+
+        const finalFecha = parseExcelDate(fechaRaw);
+        const calculatedTotal = computedTotal || (cantidad * precioUnitario) || 0;
+
+        importedItems.push({
+          sheetRow: row,
+          clienteNombre: clientName || (targetClient ? targetClient.nombre : 'Cliente Desconocido'),
+          clienteId: targetClient ? targetClient.id : 'temp_cli',
+          proyectoNombre: projectName || (targetProject ? targetProject.nombre : 'Proyecto General'),
+          proyectoId: targetProject ? targetProject.id : 'temp_pro',
+          fecha: finalFecha,
+          concepto,
+          descripcion,
+          colaboradorId: targetColaborador ? targetColaborador.id : undefined,
+          colaboradorNombre: targetColaborador ? targetColaborador.nombre : undefined,
+          hsInicio: hsInicio ? formatExcelTime(hsInicio) : undefined,
+          hsFin: hsFin ? formatExcelTime(hsFin) : undefined,
+          hsTotal: hsTotal > 0 ? hsTotal : undefined,
+          cantidad: cantidad,
+          precioUnitario: precioUnitario || (targetColaborador ? targetColaborador.tarifaSugerida : 0),
+          total: calculatedTotal
+        });
+      }
+
+      setImportResult({
+        summary: {
+          totalRowsRead: rawRows.length,
+          itemsImported: importedItems.length,
+          tempClientesDetected: tempClientes.length - initialClientesCount,
+          tempProyectosDetected: tempProyectos.length - initialProyectosCount,
+          tempColaboradoresDetected: tempColaboradores.length - initialColaboradoresCount
+        },
+        parsedItems: importedItems,
+        updatedDbState: { clientes: tempClientes, proyectos: tempProyectos, colaboradores: tempColaboradores }
+      });
     } catch (err: any) {
-      setApiError(err.message || 'Error de red durante la importación. Intenta de nuevo.');
+      setApiError(err.message || 'Error al procesar el archivo Excel. Verifica el formato e intenta nuevamente.');
     } finally {
       setLoading(false);
     }

@@ -128,8 +128,28 @@ export default function PresupuestosAdmin({ clientes, pedidos, proyectos, onConv
   const [otEditMode, setOtEditMode] = useState<'generar' | 'editar' | 'lista'>('generar');
   const [otModalOpen, setOtModalOpen] = useState(false);
   const [otPresupuestoSeleccionado, setOtPresupuestoSeleccionado] = useState<Presupuesto | null>(null);
+  const [otSelectedItemIds, setOtSelectedItemIds] = useState<string[]>([]);
   const [showCalculadoraAdhesivo, setShowCalculadoraAdhesivo] = useState(false);
   const [menuAbiertoId, setMenuAbiertoId] = useState<string | null>(null);
+
+  const isMaterialItem = (it: PresupuestoItem) =>
+    it.categoria === 'Insumo' || it.categoria === 'Adquisicion' || !['ManoDeObra', 'Entrega'].includes(it.categoria);
+
+  const buildDetallesTrabajoTexto = (pedidoDesc?: string, items?: PresupuestoItem[], selectedIds?: string[]) => {
+    const parts: string[] = [];
+    if (pedidoDesc) {
+      parts.push(pedidoDesc);
+    }
+    const filteredItems = (items || []).filter((it) => !selectedIds || selectedIds.includes(it.id));
+    if (filteredItems.length > 0) {
+      if (parts.length > 0) parts.push('');
+      parts.push('Materiales e insumos a utilizar:');
+      for (const item of filteredItems) {
+        parts.push(`• ${item.descripcion} (Cant: ${item.cantidad})`);
+      }
+    }
+    return parts.join('\n');
+  };
 
   const handleAplicarCalculoAdhesivo = (res: CalculoAdhesivoResultado) => {
     if (res.lineasDesglosadas && res.lineasDesglosadas.length > 1) {
@@ -368,18 +388,16 @@ export default function PresupuestosAdmin({ clientes, pedidos, proyectos, onConv
 
   const handleAbrirModalOT = (presupuesto: Presupuesto) => {
     // Pre-cargar los datos del presupuesto en el formulario del modal
-    const detallesParts: string[] = [];
-    if (presupuesto.pedido?.descripcion) {
-      detallesParts.push(presupuesto.pedido.descripcion);
-    }
-    if (presupuesto.items && presupuesto.items.length > 0) {
-      detallesParts.push('');
-      for (const item of presupuesto.items) {
-        detallesParts.push(`• ${item.descripcion} (Cant: ${item.cantidad})`);
-      }
-    }
+    const matIds = (presupuesto.items || [])
+      .filter(isMaterialItem)
+      .map((it) => it.id);
+    const finalSelectedIds = matIds.length > 0 ? matIds : (presupuesto.items || []).map((it) => it.id);
+    setOtSelectedItemIds(finalSelectedIds);
+
+    const detallesTexto = buildDetallesTrabajoTexto(presupuesto.pedido?.descripcion, presupuesto.items, finalSelectedIds);
+
     setOtForm({
-      detallesTrabajo: detallesParts.join('\n') || 'Sin detalles especificados',
+      detallesTrabajo: detallesTexto || 'Sin detalles especificados',
       comentarioCliente: presupuesto.comentarioCliente || '',
       contacto: presupuesto.contacto || '',
       fechaInicio: presupuesto.fechaInicio ? presupuesto.fechaInicio.slice(0, 10) : '',
@@ -1448,22 +1466,118 @@ export default function PresupuestosAdmin({ clientes, pedidos, proyectos, onConv
               </div>
             )}
             {otEditMode === 'generar' && otPresupuestoSeleccionado && (
-              <div className="mb-4 grid grid-cols-2 gap-3 rounded-md border border-white/10 bg-white/5 px-4 py-3">
+              <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-md border border-white/10 bg-white/5 px-4 py-3">
                 <div>
                   <span className="text-xs font-mono text-slate-500">Cliente</span>
-                  <p className="text-sm text-slate-200">{otPresupuestoSeleccionado.clienteNombre}</p>
+                  <p className="text-sm font-semibold text-slate-200">{otPresupuestoSeleccionado.clienteNombre}</p>
                 </div>
                 <div>
                   <span className="text-xs font-mono text-slate-500">Proyecto</span>
-                  <p className="text-sm text-slate-200">{otPresupuestoSeleccionado.proyecto}</p>
+                  <p className="text-sm font-semibold text-slate-200">{otPresupuestoSeleccionado.proyecto}</p>
                 </div>
                 <div>
                   <span className="text-xs font-mono text-slate-500">Contacto</span>
                   <p className="text-sm text-slate-200">{otPresupuestoSeleccionado.contacto || '—'}</p>
                 </div>
-                <div>
-                  <span className="text-xs font-mono text-slate-500">Monto</span>
-                  <p className="text-sm text-slate-200">Gs. {Math.round(otPresupuestoSeleccionado.total).toLocaleString('es-PY')}</p>
+              </div>
+            )}
+
+            {/* Selector de Materiales a pasar a la OT (Item 10) */}
+            {otEditMode === 'generar' && otPresupuestoSeleccionado && (otPresupuestoSeleccionado.items || []).length > 0 && (
+              <div className="mb-4 rounded-md border border-orange-500/20 bg-[#090a0f] p-3 space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-orange-400 uppercase tracking-wider">
+                      Materiales a incluir en la OT
+                    </span>
+                    <span className="text-[11px] font-mono text-slate-400">
+                      ({otSelectedItemIds.length} de {otPresupuestoSeleccionado.items?.length || 0})
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const matIds = (otPresupuestoSeleccionado.items || []).filter(isMaterialItem).map((i) => i.id);
+                        setOtSelectedItemIds(matIds);
+                        setOtForm((f) => ({
+                          ...f,
+                          detallesTrabajo: buildDetallesTrabajoTexto(otPresupuestoSeleccionado.pedido?.descripcion, otPresupuestoSeleccionado.items, matIds) || 'Sin detalles especificados',
+                        }));
+                      }}
+                      className="px-2 py-0.5 rounded border border-orange-500/30 bg-orange-500/10 text-orange-300 hover:bg-orange-500/20 transition-colors"
+                      title="Seleccionar solo insumos y materiales (excluye mano de obra)"
+                    >
+                      Solo Materiales
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allIds = (otPresupuestoSeleccionado.items || []).map((i) => i.id);
+                        setOtSelectedItemIds(allIds);
+                        setOtForm((f) => ({
+                          ...f,
+                          detallesTrabajo: buildDetallesTrabajoTexto(otPresupuestoSeleccionado.pedido?.descripcion, otPresupuestoSeleccionado.items, allIds) || 'Sin detalles especificados',
+                        }));
+                      }}
+                      className="px-2 py-0.5 rounded border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 transition-colors"
+                    >
+                      Todos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOtSelectedItemIds([]);
+                        setOtForm((f) => ({
+                          ...f,
+                          detallesTrabajo: buildDetallesTrabajoTexto(otPresupuestoSeleccionado.pedido?.descripcion, otPresupuestoSeleccionado.items, []) || 'Sin detalles especificados',
+                        }));
+                      }}
+                      className="px-2 py-0.5 rounded border border-white/10 bg-white/5 text-slate-400 hover:bg-white/10 transition-colors"
+                    >
+                      Ninguno
+                    </button>
+                  </div>
+                </div>
+
+                <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1 divide-y divide-white/5">
+                  {otPresupuestoSeleccionado.items?.map((it) => {
+                    const isChecked = otSelectedItemIds.includes(it.id);
+                    const isMat = isMaterialItem(it);
+                    return (
+                      <label
+                        key={it.id}
+                        className="flex items-center justify-between gap-3 pt-1.5 pb-1 px-1.5 rounded hover:bg-white/[0.03] cursor-pointer transition-colors"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {
+                              const nextIds = isChecked
+                                ? otSelectedItemIds.filter((id) => id !== it.id)
+                                : [...otSelectedItemIds, it.id];
+                              setOtSelectedItemIds(nextIds);
+                              setOtForm((f) => ({
+                                ...f,
+                                detallesTrabajo: buildDetallesTrabajoTexto(otPresupuestoSeleccionado.pedido?.descripcion, otPresupuestoSeleccionado.items, nextIds) || 'Sin detalles especificados',
+                              }));
+                            }}
+                            className="rounded border-white/20 bg-black/40 text-orange-500 focus:ring-0 cursor-pointer"
+                          />
+                          <span className={`text-xs truncate ${isChecked ? 'text-slate-200' : 'text-slate-500'}`}>
+                            {it.descripcion}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 font-mono text-[11px]">
+                          <span className="text-slate-400">Cant: {it.cantidad}</span>
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] uppercase font-semibold ${isMat ? 'bg-orange-500/20 text-orange-300 border border-orange-500/30' : 'bg-white/5 text-slate-400 border border-white/10'}`}>
+                            {it.categoria}
+                          </span>
+                        </div>
+                      </label>
+                    );
+                  })}
                 </div>
               </div>
             )}
